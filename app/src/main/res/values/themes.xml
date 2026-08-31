@@ -35,7 +35,7 @@
         <item name="android:textAppearance">?textAppearanceBodySmall</item>
         <item name="android:textColor">@color/colorTextDark</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:layout_marginTop">12dp</item>
     </style>
 
     <!-- LSPosed 概览页信息卡 value 样式 -->
@@ -44,6 +44,5 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textAppearance">?textAppearanceBodyMedium</item>
         <item name="android:textColor">@color/colorTextGray</item>
-        <item name="android:paddingBottom">2dp</item>
     </style>
 </resources>

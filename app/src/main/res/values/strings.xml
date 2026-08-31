@@ -51,6 +51,8 @@
     <string name="project_address">Project Address</string>
     <string name="module_not_activated">Module not activated</string>
     <string name="module_version">Module version: %1$s</string>
+    <string name="module_version_plain">%1$s</string>
+    <string name="module_status">Module status</string>
     <string name="system_version">System version: %1$s</string>
     <string name="module_is_activated">Module is activated</string>
     <string name="display_settings">Display Settings</string>
@@ -164,4 +166,7 @@
     <string name="about_desc">This module is adapted from AppErrorsTracking on LSPosed API 102, with slight differences in details such as using notifications instead of dialogs and an adjusted upload policy.</string>
     <string name="about_link_tip">Tap to open the original project on GitHub</string>
     <string name="about_github_url">github.com/KitsunePie/AppErrorsTracking</string>
+    <string name="easter_egg_progress">Easter egg %1$d more taps</string>
+    <string name="easter_egg_switch_manager">Easter egg: switched to LSPosed style check</string>
+    <string name="easter_egg_switch_mine">Easter egg: switched to custom style check</string>
 </resources>

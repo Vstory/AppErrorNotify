@@ -16,9 +16,8 @@
 
         <com.google.android.material.appbar.CollapsingToolbarLayout
             android:id="@+id/toolbar_layout"
-            style="?collapsingToolbarLayoutLargeStyle"
             android:layout_width="match_parent"
-            android:layout_height="?attr/collapsingToolbarLayoutLargeSize"
+            android:layout_height="wrap_content"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:titleCollapseMode="scale">
 
@@ -28,7 +27,8 @@
                 android:gravity="center|start"
                 android:orientation="horizontal"
                 android:paddingStart="20dp"
-                android:paddingTop="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="6dp"
                 android:paddingEnd="20dp">
 
                 <TextView
@@ -70,7 +70,7 @@
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="0dp"
         android:layout_marginBottom="10dp"
         android:fillViewport="true"
         android:requiresFadingEdge="vertical"
@@ -80,73 +80,78 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:animateLayoutChanges="true"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:orientation="vertical">
 
-            <!-- 状态激活卡：浅绿底深字，图标+状态+API（去重复版本/系统行） -->
+            <!-- 状态激活卡：浅绿底深字，左侧文字列 + 右侧圆环勾 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/main_lin_status"
                 style="@style/Widget.AppErrors.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="15dp"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="4dp"
                 android:layout_marginRight="15dp"
-                android:layout_marginBottom="5dp"
+                android:layout_marginBottom="0dp"
                 app:cardBackgroundColor="@color/statusInactive">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:gravity="center|start"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:padding="20dp">
-
-                    <androidx.constraintlayout.utils.widget.ImageFilterView
-                        android:id="@+id/main_img_status"
-                        android:layout_width="28dp"
-                        android:layout_height="28dp"
-                        android:layout_marginEnd="16dp"
-                        android:src="@drawable/ic_warn"
-                        android:tint="@color/white" />
+                    android:paddingStart="20dp"
+                    android:paddingTop="16dp"
+                    android:paddingEnd="20dp"
+                    android:paddingBottom="16dp">
 
                     <LinearLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:orientation="vertical">
 
                         <TextView
                             android:id="@+id/main_text_status"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginBottom="6dp"
                             android:fontFamily="sans-serif-medium"
                             android:singleLine="true"
                             android:text="@string/module_not_activated"
                             android:textColor="@color/white"
-                            android:textSize="16sp"
+                            android:textSize="20sp"
                             android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/main_text_api_way"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:alpha="0.9"
-                            android:ellipsize="end"
-                            android:singleLine="true"
-                            android:textColor="@color/white"
-                            android:textSize="13sp"
-                            android:visibility="gone" />
 
                         <TextView
                             android:id="@+id/main_text_module_version"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:alpha="0.75"
                             android:singleLine="true"
                             android:textColor="@color/white"
-                            android:textSize="12sp" />
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/main_text_api_way"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:alpha="0.85"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:textColor="@color/white"
+                            android:textSize="13sp"
+                            android:visibility="gone" />
                     </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/main_img_status"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:layout_marginStart="14dp"
+                        android:contentDescription="@string/module_status"
+                        android:src="@drawable/ic_check_ring" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -157,14 +162,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="15dp"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginRight="15dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="16dp">
 
                     <TextView
                         android:id="@+id/info_framework_version"
@@ -175,20 +180,6 @@
 
                     <TextView
                         android:id="@+id/info_framework_version_value"
-                        style="@style/DeviceInfoValue"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/not_installed" />
-
-                    <TextView
-                        android:id="@+id/info_module_version_label"
-                        style="@style/DeviceInfoLabel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/info_module_version" />
-
-                    <TextView
-                        android:id="@+id/info_module_version_value"
                         style="@style/DeviceInfoValue"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -258,14 +249,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="15dp"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginRight="15dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="16dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -382,19 +373,23 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="15dp"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginRight="15dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:paddingStart="16dp"
+                    android:paddingTop="14dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="8dp">
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="10dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginBottom="6dp"
                         android:alpha="0.85"
                         android:singleLine="true"
                         android:text="@string/function_mgr"
@@ -402,49 +397,117 @@
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
-                    <TextView
+                    <!-- 查看异常历史记录：列表项行（图标+标题+右箭头） -->
+                    <LinearLayout
                         android:id="@+id/view_errors_record_button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/bg_button_round"
-                        android:gravity="center"
-                        android:padding="12dp"
-                        android:singleLine="true"
-                        android:text="@string/view_errors_record"
-                        android:textColor="@color/colorTextGray"
-                        android:textSize="15sp" />
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="12dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="10dp"
-                        android:alpha="0.6"
-                        android:lineSpacingExtra="6dp"
-                        android:text="@string/view_errors_record_tip"
-                        android:textColor="@color/colorTextDark"
-                        android:textSize="12sp" />
+                        <ImageView
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="16dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:contentDescription="@string/view_errors_record"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_history"
+                            android:tint="@color/colorFunctionIcon" />
 
-                    <TextView
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:singleLine="true"
+                                android:text="@string/view_errors_record"
+                                android:textColor="@color/colorTextGray"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:alpha="0.6"
+                                android:textSize="12sp"
+                                android:text="@string/view_errors_record"
+                                android:textColor="@color/colorTextDark" />
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:alpha="0.4"
+                            android:src="@drawable/ic_chevron_right"
+                            android:tint="@color/colorTextGray" />
+                    </LinearLayout>
+
+                    <!-- 查看已忽略异常的应用：列表项行 -->
+                    <LinearLayout
                         android:id="@+id/view_muted_errors_apps_button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/bg_button_round"
-                        android:gravity="center"
-                        android:padding="12dp"
-                        android:singleLine="true"
-                        android:text="@string/view_muted_errors_apps"
-                        android:textColor="@color/colorTextGray"
-                        android:textSize="15sp" />
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="12dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="6dp"
-                        android:alpha="0.6"
-                        android:lineSpacingExtra="6dp"
-                        android:text="@string/view_muted_errors_apps_tip"
-                        android:textColor="@color/colorTextDark"
-                        android:textSize="12sp" />
+                        <ImageView
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="16dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:contentDescription="@string/view_muted_errors_apps"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_volume_off"
+                            android:tint="@color/colorFunctionIcon" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:singleLine="true"
+                                android:text="@string/view_muted_errors_apps"
+                                android:textColor="@color/colorTextGray"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:alpha="0.6"
+                                android:textSize="12sp"
+                                android:text="@string/view_muted_errors_apps"
+                                android:textColor="@color/colorTextDark" />
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:alpha="0.4"
+                            android:src="@drawable/ic_chevron_right"
+                            android:tint="@color/colorTextGray" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -454,14 +517,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="15dp"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginRight="15dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="16dp">
 
                     <TextView
                         android:layout_width="match_parent"
@@ -512,11 +575,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="15dp"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginRight="15dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
                 tools:ignore="HardcodedText">
 
                 <LinearLayout
@@ -524,14 +584,15 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:padding="16dp">
 
                     <TextView
                         android:id="@+id/link_with_follow_me"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="6dp"
-                        android:gravity="center"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:text="@string/about_title"
                         android:textColor="@color/colorTextDark"
                         android:textSize="15sp"

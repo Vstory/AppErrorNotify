@@ -4,7 +4,6 @@
 package com.fankes.apperrors.ui.activity.main;
 
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.os.Build;
 
 import androidx.core.content.ContextCompat;
@@ -37,9 +36,17 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
     /** 模块是否有效 */
     public static boolean isModuleValied = false;
 
+    private static final String EASTER_EGG_PREF = "easter_egg_style";
+    private static final int EASTER_EGG_CLICK_TARGET = 7;
+    private static final int STYLE_MINE = 0;
+    private static final int STYLE_MANAGER = 1;
+    private int easterEggClickCount = 0;
+    private android.content.SharedPreferences easterEggPrefs;
+
     @Override
     protected void onCreate() {
         checkingTopComponentName();
+        easterEggPrefs = getSharedPreferences("easter_egg", MODE_PRIVATE);
         /** 设置 CI 自动构建标识 */
         if (ModuleVersion.isCiMode()) {
             binding.mainTitle.setText("CI " + ModuleVersion.GITHUB_COMMIT_ID);
@@ -52,7 +59,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
                 dlg.show();
             });
         }
-        binding.mainTextModuleVersion.setText(LocaleFactoryKt.getLocale().moduleVersion(ModuleVersion.INSTANCE.toString()));
+        binding.mainTextModuleVersion.setText(getString(R.string.module_version_plain, ModuleVersion.INSTANCE.toString()));
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInFrontSwitch,
                 () -> ConfigData.isEnableOnlyShowErrorsInFront(),
                 value -> ConfigData.setEnableOnlyShowErrorsInFront(value), null);
@@ -77,12 +84,11 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         binding.titleLoggerIcon.setOnClickListener(v -> navigateTo(LoggerActivity.class));
         /** 项目地址按钮点击事件 */
         binding.titleGithubIcon.setOnClickListener(v -> FunctionFactoryKt.openBrowser(this, "https://github.com/Vstory/com.fankes.apperrors", ""));
-        /** 关于本项目 → 跳转原项目 GitHub（标题/链接行/整卡均可点，水波纹反馈） */
+        /** 关于本项目 → 链接行打开原项目 GitHub 水波纹 */
         android.view.View.OnClickListener openGithub = v ->
                 FunctionFactoryKt.openBrowser(this, "https://github.com/KitsunePie/AppErrorsTracking", "");
-        binding.linkWithFollowMe.setOnClickListener(openGithub);
         binding.linkGithubUrl.setOnClickListener(openGithub);
-        binding.paymentFollowingZhCnItem.setOnClickListener(openGithub);
+        binding.linkWithFollowMe.setOnClickListener(v -> handleEasterEggClick());
         /** 设置桌面图标显示隐藏 */
         binding.hideIconInLauncherSwitch.setChecked(!FunctionFactoryKt.isLauncherIconShowing(this));
         binding.hideIconInLauncherSwitch.setOnCheckedChangeListener((btn, b) -> {
@@ -94,10 +100,9 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         refreshInfoCard();
     }
 
-    /** 填充信息卡（框架/模块/系统/设备/ABI/包名，对齐 LSPosed 概览页 info_card） */
+    /** 填充信息卡（框架/系统/设备/ABI/包名，对齐 LSPosed 概览页 info_card，模块版本在激活卡显示不重复） */
     private void initInfoCard() {
         binding.infoFrameworkVersionValue.setText(getString(R.string.not_installed));
-        binding.infoModuleVersionValue.setText(ModuleVersion.INSTANCE.toString());
         binding.infoSystemVersionValue.setText(systemVersion);
         binding.infoDeviceValue.setText(getDevice());
         binding.infoAbiValue.setText(Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : getString(R.string.no_cpu_abi));
@@ -128,11 +133,10 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         startActivity(intent);
     }
 
-    /** 刷新模块状态（激活卡：浅绿底深字，对齐 LSPosed 概览页） */
+    /** 刷新模块状态（激活卡：浅绿底深字 + 右侧大对勾，对齐 LSPosed 概览页） */
     private void refreshModuleStatus() {
         boolean active = ModuleServiceHolder.isActive();
         boolean partial = active && !isModuleValied;
-        // 激活卡背景：激活/部分=浅容器色，未激活=深灰（Material3 primaryContainer 风格）
         int bgColor;
         int statusTextColor;
         if (partial) {
@@ -146,11 +150,18 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
             statusTextColor = ContextCompat.getColor(this, R.color.statusInactiveText);
         }
         binding.mainLinStatus.setCardBackgroundColor(bgColor);
-        binding.mainImgStatus.setImageResource(active ? R.drawable.ic_success : R.drawable.ic_warn);
-        binding.mainImgStatus.setImageTintList(ColorStateList.valueOf(statusTextColor));
         binding.mainTextStatus.setTextColor(statusTextColor);
-        binding.mainTextApiWay.setTextColor(statusTextColor);
         binding.mainTextModuleVersion.setTextColor(statusTextColor);
+        binding.mainTextApiWay.setTextColor(statusTextColor);
+        // 右侧勾：激活=圆环勾；未激活=白色警告
+        int icon = active ? currentCheckIcon() : R.drawable.ic_warn;
+        binding.mainImgStatus.setImageResource(icon);
+        // 圆环正常尺寸，不探出
+        binding.mainImgStatus.getLayoutParams().width = dp(56);
+        binding.mainImgStatus.getLayoutParams().height = dp(56);
+        binding.mainImgStatus.setTranslationX(0);
+        binding.mainImgStatus.setAlpha(1f);
+        binding.mainImgStatus.requestLayout();
         binding.mainTextStatus.setText(partial
                 ? LocaleFactoryKt.getLocale().getModuleNotFullyActivated()
                 : active ? LocaleFactoryKt.getLocale().getModuleIsActivated()
@@ -159,6 +170,34 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         XposedService service = ModuleServiceHolder.getService();
         binding.mainTextApiWay.setText(service != null
                 ? "Activated by " + service.getFrameworkName() + " API " + service.getApiVersion() : "");
+    }
+
+    /** dp 转像素 */
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void handleEasterEggClick() {
+        easterEggClickCount++;
+        if (easterEggClickCount < EASTER_EGG_CLICK_TARGET) {
+            int left = EASTER_EGG_CLICK_TARGET - easterEggClickCount;
+            FunctionFactoryKt.toast(this, getString(R.string.easter_egg_progress, left));
+            return;
+        }
+        easterEggClickCount = 0;
+        int current = easterEggPrefs.getInt(EASTER_EGG_PREF, STYLE_MINE);
+        int next = (current + 1) % 2;
+        easterEggPrefs.edit().putInt(EASTER_EGG_PREF, next).apply();
+        FunctionFactoryKt.toast(this, next == STYLE_MANAGER
+                ? getString(R.string.easter_egg_switch_manager)
+                : getString(R.string.easter_egg_switch_mine));
+        refreshModuleStatus();
+    }
+
+    /** 当前样式下的勾图标 */
+    private int currentCheckIcon() {
+        int style = easterEggPrefs.getInt(EASTER_EGG_PREF, STYLE_MINE);
+        return style == STYLE_MANAGER ? R.drawable.ic_check_ring_lsp : R.drawable.ic_check_ring;
     }
 
     /** 当模块激活后才能执行相应功能 */

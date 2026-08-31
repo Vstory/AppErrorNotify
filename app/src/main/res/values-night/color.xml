@@ -11,5 +11,7 @@
     <color name="statusPartialText">#FFFFD9A0</color>
     <color name="statusInactive">#FF3A3A3A</color>
     <color name="statusInactiveText">#FFFFFFFF</color>
+    <color name="statusCheckTint">#FF3DDC97</color>
+    <color name="colorIconContainer">#FF2A4A3E</color>
     <color name="cardBackground">#FF383838</color>
 </resources>
