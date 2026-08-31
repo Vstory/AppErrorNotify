@@ -561,8 +561,7 @@
                 android:textColor="@color/colorTextGray"
                 android:textSize="15sp" />
 
-            <io.github.sky.apperrors.ui.widget.ZoomableLayout
-                android:id="@+id/error_stack_trace_zoom_layout"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
@@ -620,7 +619,7 @@
                     android:padding="4dp"
                     android:src="@drawable/ic_copy"
                     android:tint="@color/colorTextGray" />
-            </io.github.sky.apperrors.ui.widget.ZoomableLayout>
+            </FrameLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

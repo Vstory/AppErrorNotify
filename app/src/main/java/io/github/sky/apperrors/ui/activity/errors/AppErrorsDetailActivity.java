@@ -267,8 +267,6 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         binding.rootView.post(() -> {
             binding.appPanelScrollView.scrollTo(0, 0);
             binding.errorStackTraceScrollView.scrollTo(0, 0);
-            // 重置整块堆栈区域的双指缩放/平移，恢复原始大小
-            binding.errorStackTraceZoomLayout.resetZoom();
         });
     }
 
