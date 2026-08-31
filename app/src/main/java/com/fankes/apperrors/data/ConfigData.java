@@ -170,9 +170,9 @@ public class ConfigData {
         putBoolean(KEY_SHARE_WITH_FILE, value);
     }
 
-    /** 全局错误显示类型（AppErrorsConfigType.ordinal） */
+    /** 全局错误显示类型（AppErrorsConfigType.ordinal；默认通知——本模块为通知版定位） */
     public static int getGlobalShowErrorsType() {
-        return getInt(KEY_GLOBAL_SHOW_ERRORS_TYPE, AppErrorsConfigType.DIALOG.ordinal());
+        return getInt(KEY_GLOBAL_SHOW_ERRORS_TYPE, AppErrorsConfigType.NOTIFY.ordinal());
     }
     public static void setGlobalShowErrorsType(int value) {
         putInt(KEY_GLOBAL_SHOW_ERRORS_TYPE, value);

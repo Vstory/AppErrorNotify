@@ -45,7 +45,7 @@ public class AppErrorsConfigData {
      * @param packageName 当前 APP 包名 - 不填为全局配置
      */
     public static boolean isAppShowingType(AppErrorsConfigType type, String packageName) {
-        if (packageName == null || !packageName.trim().isEmpty()) {
+        if (packageName != null && !packageName.trim().isEmpty()) {
             switch (type) {
                 case GLOBAL:
                     return !showDialogApps.contains(packageName) && !showNotifyApps.contains(packageName)

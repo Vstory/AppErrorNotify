@@ -596,9 +596,47 @@ public class FrameworkHooker {
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
             FunctionFactoryKt.toast(context, "AppErrorsTracking has crashed, please see the log in console");
             logError("AppErrorsTracking has crashed itself, please see the Android Runtime Exception in console");
-        } else {
-            // 统一改为发送系统通知（不弹窗口/气泡，见需求：拦截崩溃弹窗 → 通知带按钮跳转模块 UI 看详情）
+        } else if (!ConfigData.isEnableAppConfigTemplate()) {
+            // 模板未启用（默认）：统一发送系统通知
             sendCrashNotification(context, d, appName, errorTitle);
+        } else {
+            // 模板已启用：按 per-app 配置决定显示方式。
+            // ⚠️ system_server 每次崩溃时从 RemotePreferences 重读（UI 保存后无需重启立即生效），
+            //    4 次 getStringSet IPC 开销在崩溃频率下可忽略
+            AppErrorsConfigData.refresh();
+            AppErrorsConfigType type = resolveAppShowType(d.packageName());
+            logInfo("App config template: \"" + d.packageName() + "\" -> " + type.name());
+            switch (type) {
+                case DIALOG:
+                    showAppErrorsWithDialog(context, d, appName, errorTitle);
+                    break;
+                case TOAST:
+                    FunctionFactoryKt.toast(context, errorTitle);
+                    break;
+                case NOTHING:
+                    // 静默（仍记录历史 + 日志）
+                    break;
+                case NOTIFY:
+                default:
+                    sendCrashNotification(context, d, appName, errorTitle);
+                    break;
+                case GLOBAL:
+                    // 未配置 → 跟随全局显示类型
+                    AppErrorsConfigType global = AppErrorsConfigType.values()[ConfigData.getGlobalShowErrorsType()];
+                    switch (global) {
+                        case DIALOG:
+                            showAppErrorsWithDialog(context, d, appName, errorTitle);
+                            break;
+                        case TOAST:
+                            FunctionFactoryKt.toast(context, errorTitle);
+                            break;
+                        case NOTHING:
+                            break;
+                        case NOTIFY:
+                        default:
+                            sendCrashNotification(context, d, appName, errorTitle);
+                    }
+            }
         }
 
         /** 打印错误日志 */
@@ -610,6 +648,15 @@ public class FrameworkHooker {
         } else {
             logError("Process \"" + d.processName() + "\" " + (d.isRepeatingCrash() ? "keeps stopping" : "has stopped") + " --pid " + d.pid());
         }
+    }
+
+    /** 解析应用配置模板中该应用的显示类型（未配置 → GLOBAL 跟随全局） */
+    private static AppErrorsConfigType resolveAppShowType(String packageName) {
+        if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, packageName)) return AppErrorsConfigType.DIALOG;
+        if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, packageName)) return AppErrorsConfigType.NOTIFY;
+        if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, packageName)) return AppErrorsConfigType.TOAST;
+        if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTHING, packageName)) return AppErrorsConfigType.NOTHING;
+        return AppErrorsConfigType.GLOBAL;
     }
 
     /**

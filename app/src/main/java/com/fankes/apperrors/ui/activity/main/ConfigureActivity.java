@@ -9,7 +9,6 @@ import com.fankes.apperrors.bean.AppFiltersBean;
 import com.fankes.apperrors.bean.AppInfoBean;
 import com.fankes.apperrors.bean.enums.AppFiltersType;
 import com.fankes.apperrors.data.AppErrorsConfigData;
-import com.fankes.apperrors.data.ConfigData;
 import com.fankes.apperrors.data.enums.AppErrorsConfigType;
 import com.fankes.apperrors.databinding.ActivityConfigBinding;
 import com.fankes.apperrors.databinding.AdapterAppInfoBinding;
@@ -164,7 +163,6 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                 else if (cb.configRadio4.isChecked()) type = AppErrorsConfigType.NOTHING;
                 else throw new IllegalStateException("Invalid config type");
                 result.accept(type);
-                ConfigData.refresh();
             });
             builder.cancelButton();
         });
