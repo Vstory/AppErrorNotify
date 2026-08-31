@@ -100,13 +100,12 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         });
         /** 信息卡：填充设备/框架信息（参考 LSPosed 概览页 info_card） */
         initInfoCard();
+        refreshInfoCard();
     }
 
     /** 填充信息卡（框架/模块/系统/设备/ABI/包名）+ 复制按钮（对齐 LSPosed 概览页） */
     private void initInfoCard() {
-        binding.infoFrameworkVersionValue.setText(ModuleServiceHolder.isActive() && ModuleServiceHolder.getService() != null
-                ? ModuleServiceHolder.getService().getFrameworkName() + " (" + ModuleServiceHolder.getService().getApiVersion() + ")"
-                : getString(R.string.not_installed));
+        binding.infoFrameworkVersionValue.setText(getString(R.string.not_installed));
         binding.infoModuleVersionValue.setText(ModuleVersion.INSTANCE.toString());
         binding.infoSystemVersionValue.setText(systemVersion);
         binding.infoDeviceValue.setText(getDevice());
@@ -122,6 +121,14 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
             sb.append(getString(R.string.info_package_name)).append("\n").append(binding.infoPackageValue.getText());
             FunctionFactoryKt.copyToClipboard(this, sb.toString());
         });
+    }
+
+    /** 运行时刷新信息卡框架字段（与状态卡联动，避免"已激活但框架版本未安装"不一致） */
+    private void refreshInfoCard() {
+        XposedService service = ModuleServiceHolder.getService();
+        binding.infoFrameworkVersionValue.setText(service != null
+                ? service.getFrameworkName() + " (" + service.getApiVersion() + ")"
+                : getString(R.string.not_installed));
     }
 
     /** 设备名（制造商标记+品牌+型号，首字母大写，对齐 LSPosed getDevice()） */
@@ -167,6 +174,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
     protected void onResume() {
         super.onResume();
         refreshModuleStatus();
+        refreshInfoCard();
         ModuleServiceHolder.addServiceStateListener(serviceStateListener, true);
     }
 
@@ -181,6 +189,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         runOnUiThread(() -> {
             isModuleValied = service != null;
             refreshModuleStatus();
+            refreshInfoCard();
         });
     };
 }
