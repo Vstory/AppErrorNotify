@@ -6,6 +6,7 @@ package com.fankes.apperrors.ui.activity.main;
 import android.content.Intent;
 import android.os.Build;
 
+import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewKt;
 
 import com.fankes.apperrors.R;
@@ -97,6 +98,40 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
             if (!btn.isPressed()) return;
             FunctionFactoryKt.hideOrShowLauncherIcon(this, b);
         });
+        /** 信息卡：填充设备/框架信息（参考 LSPosed 概览页 info_card） */
+        initInfoCard();
+    }
+
+    /** 填充信息卡（框架/模块/系统/设备/ABI/包名）+ 复制按钮（对齐 LSPosed 概览页） */
+    private void initInfoCard() {
+        binding.infoFrameworkVersionValue.setText(ModuleServiceHolder.isActive() && ModuleServiceHolder.getService() != null
+                ? ModuleServiceHolder.getService().getFrameworkName() + " (" + ModuleServiceHolder.getService().getApiVersion() + ")"
+                : getString(R.string.not_installed));
+        binding.infoModuleVersionValue.setText(ModuleVersion.INSTANCE.toString());
+        binding.infoSystemVersionValue.setText(systemVersion);
+        binding.infoDeviceValue.setText(getDevice());
+        binding.infoAbiValue.setText(Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : getString(R.string.no_cpu_abi));
+        binding.infoPackageValue.setText(getPackageName());
+        binding.copyInfo.setOnClickListener(v -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append(getString(R.string.info_framework_version)).append("\n").append(binding.infoFrameworkVersionValue.getText()).append("\n\n");
+            sb.append(getString(R.string.info_module_version)).append("\n").append(binding.infoModuleVersionValue.getText()).append("\n\n");
+            sb.append(getString(R.string.info_system_version)).append("\n").append(binding.infoSystemVersionValue.getText()).append("\n\n");
+            sb.append(getString(R.string.info_device)).append("\n").append(binding.infoDeviceValue.getText()).append("\n\n");
+            sb.append(getString(R.string.info_abi)).append("\n").append(binding.infoAbiValue.getText()).append("\n\n");
+            sb.append(getString(R.string.info_package_name)).append("\n").append(binding.infoPackageValue.getText());
+            FunctionFactoryKt.copyToClipboard(this, sb.toString());
+        });
+    }
+
+    /** 设备名（制造商标记+品牌+型号，首字母大写，对齐 LSPosed getDevice()） */
+    private String getDevice() {
+        String manufacturer = Character.toUpperCase(Build.MANUFACTURER.charAt(0)) + Build.MANUFACTURER.substring(1);
+        if (!Build.BRAND.equals(Build.MANUFACTURER)) {
+            manufacturer += " " + Character.toUpperCase(Build.BRAND.charAt(0)) + Build.BRAND.substring(1);
+        }
+        manufacturer += " " + Build.MODEL + " ";
+        return manufacturer;
     }
 
     private void navigateTo(Class<?> clazz) {
@@ -107,10 +142,10 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
 
     /** 刷新模块状态 */
     private void refreshModuleStatus() {
-        binding.mainLinStatus.setBackgroundResource(
-                ModuleServiceHolder.isActive() && !isModuleValied ? R.drawable.bg_yellow_round
-                        : ModuleServiceHolder.isActive() ? R.drawable.bg_green_round
-                        : R.drawable.bg_dark_round);
+        binding.mainLinStatus.setCardBackgroundColor(
+                ModuleServiceHolder.isActive() && !isModuleValied ? ContextCompat.getColor(this, R.color.statusPartial)
+                        : ModuleServiceHolder.isActive() ? ContextCompat.getColor(this, R.color.statusActive)
+                        : ContextCompat.getColor(this, R.color.statusInactive));
         binding.mainImgStatus.setImageResource(ModuleServiceHolder.isActive() ? R.drawable.ic_success : R.drawable.ic_warn);
         binding.mainTextStatus.setText(ModuleServiceHolder.isActive() && !isModuleValied
                 ? LocaleFactoryKt.getLocale().getModuleNotFullyActivated()

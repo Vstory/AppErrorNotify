@@ -120,6 +120,14 @@
     <string name="debug_logs">调试日志</string>
     <string name="refresh">刷新</string>
     <string name="copy">复制</string>
+    <string name="info_card_title">信息</string>
+    <string name="info_framework_version">框架版本</string>
+    <string name="info_module_version">模块版本</string>
+    <string name="info_system_version">系统版本</string>
+    <string name="info_device">设备</string>
+    <string name="info_abi">ABI</string>
+    <string name="info_package_name">包名</string>
+    <string name="not_installed">未安装</string>
     <string name="export_all_logs_success">已导出全部调试日志</string>
     <string name="export_all_logs_fail">导出全部调试日志失败</string>
     <string name="this_contents_clear_when_restarts_tip">这里的内容会在设备重启后自动清空</string>

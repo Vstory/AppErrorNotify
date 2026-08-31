@@ -5,4 +5,7 @@
     <color name="colorTextGray">#FF323B42</color>
     <color name="colorStackBackground">#FFF7F8FA</color>
     <color name="colorStackError">#FFE53935</color>
+    <color name="statusActive">#FF26A69A</color>
+    <color name="statusPartial">#FFFF9800</color>
+    <color name="statusInactive">#FF1B1B1B</color>
 </resources>

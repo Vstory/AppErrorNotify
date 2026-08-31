@@ -120,6 +120,14 @@
     <string name="debug_logs">Debug Logs</string>
     <string name="refresh">Refresh</string>
     <string name="copy">Copy</string>
+    <string name="info_card_title">Information</string>
+    <string name="info_framework_version">Framework version</string>
+    <string name="info_module_version">Module version</string>
+    <string name="info_system_version">System version</string>
+    <string name="info_device">Device</string>
+    <string name="info_abi">ABI</string>
+    <string name="info_package_name">Package name</string>
+    <string name="not_installed">Not installed</string>
     <string name="export_all_logs_success">All debug logs exported</string>
     <string name="export_all_logs_fail">Failed to export all debug logs</string>
     <string name="this_contents_clear_when_restarts_tip">Here\'s content will be cleared after device restarts</string>
