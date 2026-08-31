@@ -5,7 +5,7 @@
 # ⚠️⚠️⚠️ 开发前必读 ⚠️⚠️⚠️
 #   arm64 环境必须显式指定 JDK17！
 #   (java-21 是 JRE-only, 无 javac, 编译报 JAVA_COMPILER 错误)
-#   详见: dev-guide/README.md「构建」 / 知识库 dev-guide/实战/构建环境踩坑.md §4
+#   详见: dev-project/README.md「构建」 / 知识库 dev-guide/实战/构建环境踩坑.md §4
 #
 # 用法:
 #   ./build.sh              # 构建 release APK, 输出到 app/build/outputs/apk/release/

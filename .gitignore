@@ -15,7 +15,7 @@ local.properties
 .DS_Store
 
 # 项目文档（版本流水/开发记录，不公开）
-dev-guide/
+dev-project/
 
 # 发布产物
 release/
