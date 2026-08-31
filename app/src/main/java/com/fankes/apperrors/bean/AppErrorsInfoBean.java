@@ -139,25 +139,29 @@ public class AppErrorsInfoBean implements Serializable {
                 + "\n" + environmentInfo(sDeviceBrand, sDeviceModel, sDisplay, sPackageName);
     }
 
-    /** 获取运行环境信息 */
+    /** 获取运行环境信息（同类字段合并成一行，紧凑排版） */
     private String environmentInfo(boolean sDeviceBrand, boolean sDeviceModel, boolean sDisplay, boolean sPackageName) {
-        return "[Device Brand]: " + by(Build.BRAND, sDeviceBrand)
-                + "\n[Device Model]: " + by(Build.MODEL, sDeviceModel)
-                + "\n[Display]: " + by(Build.DISPLAY, sDisplay)
-                + "\n[Android Version]: " + Build.VERSION.RELEASE
-                + "\n[Android API Level]: " + Build.VERSION.SDK_INT
+        String display = by(Build.DISPLAY, sDisplay);
+        return "[Device]: " + by(Build.BRAND, sDeviceBrand) + " " + by(Build.MODEL, sDeviceModel)
+                + (isBlank(display) ? "" : " (" + display + ")")
+                + "\n[Android]: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")"
                 + "\n[System Locale]: " + Locale.getDefault()
-                + "\n[Process ID]: " + pid
-                + "\n[User ID]: " + userId
+                + "\n[Process]: pid " + pid + " / uid " + userId
                 + "\n[CPU ABI]: " + (isBlank(cpuAbi) ? "none" : cpuAbi)
                 + "\n[Package Name]: " + by(packageName, sPackageName)
-                + "\n[Version Name]: " + (isBlank(versionName) ? "unknown" : versionName)
-                + "\n[Version Code]: " + (versionCode != -1L ? versionCode : "unknown")
-                + "\n[Target SDK]: " + (targetSdk != -1 ? targetSdk : "unknown")
-                + "\n[Min SDK]: " + (minSdk != -1 ? minSdk : "unknown")
+                + "\n[Version]: " + versionText()
+                + "\n[SDK]: target " + (targetSdk != -1 ? targetSdk : "unknown") + " / min " + (minSdk != -1 ? minSdk : "unknown")
                 + "\n[Error Type]: " + (isNativeCrash ? "Native" : "JVM")
                 + "\n[Crash Time]: " + getUtcTime()
                 + "\n[Stack Trace]:\n" + stackTrace;
+    }
+
+    /** 版本名与版本号合并：name(code)；均未知时返回 unknown */
+    private String versionText() {
+        String name = isBlank(versionName) ? "unknown" : versionName;
+        String code = versionCode != -1L ? String.valueOf(versionCode) : "unknown";
+        if ("unknown".equals(name) && "unknown".equals(code)) return "unknown";
+        return name + " (" + code + ")";
     }
 
     /** 判断字符串是否需要显示 */
