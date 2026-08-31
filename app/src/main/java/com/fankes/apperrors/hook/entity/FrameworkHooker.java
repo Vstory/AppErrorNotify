@@ -150,7 +150,7 @@ public class FrameworkHooker {
         return null;
     }
 
-    /** 获取方法（指定类，供 hook） */
+    /** 获取方法（指定类，供 hook）- 精确参数类型匹配 */
     private static Method methodOf(Class<?> clazz, String name, Class<?>... paramTypes) {
         try {
             Method m = clazz.getDeclaredMethod(name, paramTypes);
@@ -161,7 +161,21 @@ public class FrameworkHooker {
         }
     }
 
-    /** 获取构造器（指定类，供 hook） */
+    /** 获取方法（指定类，供 hook）- 按参数个数匹配（兼容各 Android 版本签名差异，原 YukiHookAPI parameterCount 语义） */
+    private static Method methodOfParamCount(Class<?> clazz, String name, int paramCount) {
+        try {
+            for (Method m : clazz.getDeclaredMethods()) {
+                if (m.getName().equals(name) && m.getParameterTypes().length == paramCount) {
+                    m.setAccessible(true);
+                    return m;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    /** 获取构造器（指定类，供 hook）- 精确参数类型匹配 */
     private static Constructor<?> constructorOf(Class<?> clazz, Class<?>... paramTypes) {
         try {
             Constructor<?> c = clazz.getDeclaredConstructor(paramTypes);
@@ -170,6 +184,20 @@ public class FrameworkHooker {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    /** 获取构造器（指定类，供 hook）- 按参数个数匹配 */
+    private static Constructor<?> constructorOfParamCount(Class<?> clazz, int paramCount) {
+        try {
+            for (Constructor<?> c : clazz.getDeclaredConstructors()) {
+                if (c.getParameterTypes().length == paramCount) {
+                    c.setAccessible(true);
+                    return c;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
     }
 
     // ===== 懒加载框架类 =====
@@ -446,10 +474,10 @@ public class FrameworkHooker {
         /** 干掉原生错误对话框 - 如果有 */
         Class<?> controllerClazz = ErrorDialogControllerClass();
         if (controllerClazz != null) {
-            Method hasCrashDialogs = methodOf(controllerClazz, "hasCrashDialogs");
+            Method hasCrashDialogs = methodOfParamCount(controllerClazz, "hasCrashDialogs", 0);
             if (hasCrashDialogs != null)
                 module.hook(hasCrashDialogs).intercept(chain -> true);
-            Constructor<?> ctor = constructorOf(controllerClazz);
+            Constructor<?> ctor = constructorOfParamCount(controllerClazz, 1);
             if (ctor != null) {
                 module.hook(ctor).intercept(chain -> {
                     Object result = chain.proceed();
@@ -458,7 +486,7 @@ public class FrameworkHooker {
                     return result;
                 });
             }
-            Method showCrashDialogs = methodOf(controllerClazz, "showCrashDialogs", Integer.TYPE);
+            Method showCrashDialogs = methodOfParamCount(controllerClazz, "showCrashDialogs", 1);
             if (showCrashDialogs != null)
                 module.hook(showCrashDialogs).intercept(chain -> null);
         }
@@ -494,8 +522,9 @@ public class FrameworkHooker {
         }
         /** 注入自定义错误对话框 */
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
-            Method m = methodOf(AppErrorsClass(), "handleAppCrashLSPB", ProcessRecordClass(), String.class,
-                    Boolean.TYPE, Boolean.TYPE, ApplicationErrorReport.CrashInfo.class, AppErrorDialog_DataClass());
+            // AOSP 签名（Android 12+ 各版本一致）：handleAppCrashLSPB(ProcessRecord app, String reason,
+            //     String shortMsg, String longMsg, String stackTrace, AppErrorDialog.Data data)
+            Method m = methodOfParamCount(AppErrorsClass(), "handleAppCrashLSPB", 6);
             if (m != null) {
                 module.hook(m).intercept(chain -> {
                     Object result = chain.proceed();
@@ -543,8 +572,10 @@ public class FrameworkHooker {
             }
         }
         /** 记录异常数据（ActivityController 路径） */
-        Method handleAppCrashInActivityController = methodOf(AppErrorsClass(), "handleAppCrashInActivityController",
-                ProcessRecordClass(), ApplicationErrorReport.CrashInfo.class);
+        // AOSP 签名（Android 12+ 各版本一致）：handleAppCrashInActivityController(ProcessRecord r,
+        //     ApplicationErrorReport.CrashInfo crashInfo, String shortMsg, String longMsg,
+        //     String stackTrace, long timeMillis, int callingPid, int callingUid)
+        Method handleAppCrashInActivityController = methodOfParamCount(AppErrorsClass(), "handleAppCrashInActivityController", 8);
         if (handleAppCrashInActivityController != null) {
             module.hook(handleAppCrashInActivityController).intercept(chain -> {
                 Object result = chain.proceed();
