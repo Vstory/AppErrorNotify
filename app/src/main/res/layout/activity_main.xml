@@ -277,7 +277,7 @@
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <com.fankes.apperrors.ui.widget.MaterialSwitch
+                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/only_show_errors_in_front_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -296,7 +296,7 @@
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
 
-                    <com.fankes.apperrors.ui.widget.MaterialSwitch
+                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/only_show_errors_in_main_process_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -315,7 +315,7 @@
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
 
-                    <com.fankes.apperrors.ui.widget.MaterialSwitch
+                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/share_with_file"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -334,7 +334,7 @@
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
 
-                    <com.fankes.apperrors.ui.widget.MaterialSwitch
+                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/enable_apps_configs_template_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -596,7 +596,7 @@
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
-                    <com.fankes.apperrors.ui.widget.MaterialSwitch
+                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/hide_icon_in_launcher_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.fankes.apperrors"
+    namespace = "io.github.sky.apperrors"
     compileSdk = 37
 
     signingConfigs {
@@ -17,7 +17,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId = "com.fankes.apperrors"
+        applicationId = "io.github.sky.apperrors"
         minSdk = 26
         targetSdk = 37
         versionName = "1.10"
