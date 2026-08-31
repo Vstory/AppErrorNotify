@@ -1,8 +1,0 @@
-@font-face {
-    font-family: inter;
-    src: url("file:///android_asset/font/inter_regular.otf")
-}
-
-.markdown-body {
-    font-family: inter;
-}

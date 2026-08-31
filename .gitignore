@@ -19,3 +19,5 @@ dev-guide/
 
 # 发布产物
 release/
+# manager.apk 解包素材（本地参考用，不提交）
+解包/
