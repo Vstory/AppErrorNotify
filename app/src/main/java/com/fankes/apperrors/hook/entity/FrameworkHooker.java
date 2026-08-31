@@ -396,8 +396,14 @@ public class FrameworkHooker {
                         } else if (ACTION_MUTE_ERROR.equals(action)) {
                             String pkg = intent.getStringExtra(EXTRA_PACKAGE);
                             if (pkg != null && !pkg.isEmpty()) {
-                                MutedErrorsData.mutedErrorsIfRestart(pkg);
-                                logInfo("Mute channel: muted \"" + pkg + "\" until restart");
+                                // 通知「忽略该应用」按钮行为：根据用户配置 直到重启/直到解锁
+                                if (ConfigData.isMuteIgnoreUntilReboot()) {
+                                    MutedErrorsData.mutedErrorsIfRestart(pkg);
+                                    logInfo("Mute channel: muted \"" + pkg + "\" until restart");
+                                } else {
+                                    MutedErrorsData.mutedErrorsIfUnlock(pkg);
+                                    logInfo("Mute channel: muted \"" + pkg + "\" until unlock");
+                                }
                             }
                         } else if (ACTION_UNMUTE_ERROR.equals(action)) {
                             Object bean = intent.getSerializableExtra(EXTRA_BEAN);

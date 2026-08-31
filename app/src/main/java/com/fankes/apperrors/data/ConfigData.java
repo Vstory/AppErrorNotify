@@ -33,6 +33,7 @@ public class ConfigData {
     private static final String KEY_DISABLE_AUTO_WRAP_ERROR_STACK_TRACE = "_disable_auto_wrap_error_stack_trace";
     private static final String KEY_SHARE_WITH_FILE = "_share_with_file";
     private static final String KEY_GLOBAL_SHOW_ERRORS_TYPE = "_global_show_errors_type";
+    private static final String KEY_MUTE_IGNORE_UNTIL_REBOOT = "_mute_ignore_until_reboot";
 
     /** 远程偏好（system_server / service 连接后的 UI） */
     private static SharedPreferences remotePrefs;
@@ -176,6 +177,14 @@ public class ConfigData {
     }
     public static void setGlobalShowErrorsType(int value) {
         putInt(KEY_GLOBAL_SHOW_ERRORS_TYPE, value);
+    }
+
+    /** 通知「忽略该应用」按钮：true=忽略直到重启（默认），false=忽略直到解锁 */
+    public static boolean isMuteIgnoreUntilReboot() {
+        return getBoolean(KEY_MUTE_IGNORE_UNTIL_REBOOT, true);
+    }
+    public static void setMuteIgnoreUntilReboot(boolean value) {
+        putBoolean(KEY_MUTE_IGNORE_UNTIL_REBOOT, value);
     }
 
     private ConfigData() {}

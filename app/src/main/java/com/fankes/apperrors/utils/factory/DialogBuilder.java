@@ -96,6 +96,11 @@ public class DialogBuilder<VB extends ViewBinding> {
         if (instance != null) instance.setMessage(value);
     }
 
+    /** 设置对话框消息内容（支持富文本，如 Html.fromHtml 生成的 Spanned） */
+    public void setMsg(CharSequence value) {
+        if (instance != null) instance.setMessage(value);
+    }
+
     /** 设置进度条对话框消息内容 */
     public void setProgressContent(String value) {
         if (customLayoutView == null) {

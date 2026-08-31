@@ -170,4 +170,8 @@
     <string name="easter_egg_progress">Easter egg %1$d more taps</string>
     <string name="easter_egg_switch_manager">Easter egg: switched to LSPosed style check</string>
     <string name="easter_egg_switch_mine">Easter egg: switched to custom style check</string>
+    <string name="mute_ignore_behavior_title">Notification "Ignore" action</string>
+    <string name="mute_ignore_behavior_unlock">Until device unlocks</string>
+    <string name="mute_ignore_behavior_restart">Until device restarts</string>
+                <string name="mute_ignore_behavior_tip">Configures how long the &quot;Ignore App&quot; action in the error notification ignores the app.\nUntil unlocks: cleared automatically after the device is unlocked.\nUntil restarts: cleared automatically after the device is restarted (default).</string>
 </resources>

@@ -163,4 +163,8 @@
     <string name="about_desc">本模块基于 AppErrorsTracking，以 LSPosed API 102 方式改造，在展示方式（以通知代替对话框）及上传策略等细节上略有差异。</string>
     <string name="about_link_tip">点击跳转原项目 GitHub</string>
     <string name="about_github_url">github.com/KitsunePie/AppErrorsTracking</string>
+    <string name="mute_ignore_behavior_title">通知「忽略」按钮行为</string>
+    <string name="mute_ignore_behavior_unlock">直到解锁</string>
+    <string name="mute_ignore_behavior_restart">直到重启</string>
+            <string name="mute_ignore_behavior_tip">配置错误通知中「忽略」按钮的忽略时长。\n直到解锁：设备解锁后自动清除。\n直到重启：设备重启后自动清除（默认）。</string>
 </resources>

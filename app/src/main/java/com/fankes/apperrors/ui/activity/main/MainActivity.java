@@ -4,7 +4,11 @@
 package com.fankes.apperrors.ui.activity.main;
 
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.os.Build;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.StyleSpan;
 
 import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewKt;
@@ -12,6 +16,7 @@ import androidx.core.view.ViewKt;
 import com.fankes.apperrors.R;
 import com.fankes.apperrors.constants.ModuleVersion;
 import com.fankes.apperrors.data.ConfigData;
+import com.fankes.apperrors.data.AppErrorsConfigData;
 import com.fankes.apperrors.data.factory.CompoundButtonFactoryKt;
 import com.fankes.apperrors.databinding.ActivityMainBinding;
 import com.fankes.apperrors.locale.LocaleFactoryKt;
@@ -80,6 +85,9 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         /** 功能管理按钮点击事件 */
         binding.viewErrorsRecordButton.setOnClickListener(v -> whenActivated(() -> navigateTo(AppErrorsRecordActivity.class)));
         binding.viewMutedErrorsAppsButton.setOnClickListener(v -> whenActivated(() -> navigateTo(AppErrorsMutedActivity.class)));
+        /** 通知「忽略」按钮行为：直到重启/直到解锁 */
+        refreshMuteIgnoreBehaviorText();
+        binding.muteIgnoreBehaviorRow.setOnClickListener(v -> whenActivated(() -> showMuteIgnoreBehaviorDialog()));
         /** 调试日志按钮点击事件 */
         binding.titleLoggerIcon.setOnClickListener(v -> navigateTo(LoggerActivity.class));
         /** 项目地址按钮点击事件 */
@@ -98,6 +106,48 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         /** 信息卡：填充设备/框架信息（参考 LSPosed 概览页 info_card） */
         initInfoCard();
         refreshInfoCard();
+    }
+
+    /** 刷新「忽略该应用」按钮行为的当前值显示 */
+    private void refreshMuteIgnoreBehaviorText() {
+        if (binding.muteIgnoreBehaviorValue == null) return;
+        binding.muteIgnoreBehaviorValue.setText(ConfigData.isMuteIgnoreUntilReboot()
+                ? LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorRestart()
+                : LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorUnlock());
+    }
+
+    /** 弹出「通知忽略方式」选择（直接以「直到解锁」「直到重启」两个按钮呈现，点击即保存生效） */
+    private void showMuteIgnoreBehaviorDialog() {
+        DialogBuilder<?> dlg = new DialogBuilder<>(this);
+        dlg.setTitle(LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorTitle());
+        dlg.setMsg(buildMuteIgnoreBehaviorTip(LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorTip()));
+        // 左侧：直到解锁；右侧：直到重启。点击对应按钮立即保存并关闭，无独立取消/确定。
+        dlg.cancelButton(LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorUnlock(), () -> {
+            ConfigData.setMuteIgnoreUntilReboot(false);
+            AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
+            refreshMuteIgnoreBehaviorText();
+        });
+        dlg.confirmButton(LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorRestart(), () -> {
+            ConfigData.setMuteIgnoreUntilReboot(true);
+            AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
+            refreshMuteIgnoreBehaviorText();
+        });
+        dlg.show();
+    }
+
+    /**
+     * 构建「通知『忽略』按钮行为」的提示文本：标签加粗，换行用 \n（\n 在 string 资源里被 aapt 保留为真实换行，HTML 标签则会被 aapt 剥掉故不用）。
+     */
+    private CharSequence buildMuteIgnoreBehaviorTip(String tip) {
+        SpannableString ss = new SpannableString(tip);
+        // 把每一行开头的「直到解锁/直到重启」标签加粗
+        String unlock = LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorUnlock();   // 直到解锁
+        String restart = LocaleFactoryKt.getLocale().getMuteIgnoreBehaviorRestart(); // 直到重启
+        int idx = tip.indexOf(unlock);
+        if (idx >= 0) ss.setSpan(new StyleSpan(Typeface.BOLD), idx, idx + unlock.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        idx = tip.indexOf(restart);
+        if (idx >= 0) ss.setSpan(new StyleSpan(Typeface.BOLD), idx, idx + restart.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return ss;
     }
 
     /** 填充信息卡（框架/系统/设备/ABI/包名，对齐 LSPosed 概览页 info_card，模块版本在激活卡显示不重复） */

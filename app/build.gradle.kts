@@ -20,8 +20,8 @@ android {
         applicationId = "com.fankes.apperrors"
         minSdk = 26
         targetSdk = 37
-        versionName = "1.9"
-        versionCode = 64
+        versionName = "1.10"
+        versionCode = 65
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

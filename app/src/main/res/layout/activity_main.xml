@@ -366,6 +366,63 @@
                         android:text="@string/apps_config_template_tip"
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
+
+                    <!-- 通知「忽略」按钮行为：配置行（导航行样式，与功能管理卡一致） -->
+                    <LinearLayout
+                        android:id="@+id/mute_ignore_behavior_row"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="12dp">
+
+                        <ImageView
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="16dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:contentDescription="@string/mute_ignore_behavior_title"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_preference"
+                            android:tint="@color/colorFunctionIcon" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:singleLine="true"
+                                android:text="@string/mute_ignore_behavior_title"
+                                android:textColor="@color/colorTextGray"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/mute_ignore_behavior_value"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:alpha="0.6"
+                                android:textSize="12sp"
+                                android:textColor="@color/colorTextDark" />
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:alpha="0.4"
+                            android:src="@drawable/ic_chevron_right"
+                            android:tint="@color/colorTextGray" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

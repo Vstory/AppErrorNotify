@@ -100,6 +100,10 @@ public class ModuleAppLocale {
     public String getNotificationViewInfo() { return str(R.string.notification_view_info); }
     public String getMuteIfRestart() { return str(R.string.mute_if_restart); }
     public String getMuteIfUnlock() { return str(R.string.mute_if_unlock); }
+    public String getMuteIgnoreBehaviorTitle() { return str(R.string.mute_ignore_behavior_title); }
+    public String getMuteIgnoreBehaviorUnlock() { return str(R.string.mute_ignore_behavior_unlock); }
+    public String getMuteIgnoreBehaviorRestart() { return str(R.string.mute_ignore_behavior_restart); }
+    public String getMuteIgnoreBehaviorTip() { return str(R.string.mute_ignore_behavior_tip); }
     public String getNoCpuAbi() { return str(R.string.no_cpu_abi); }
     public String getNoListData() { return str(R.string.no_list_data); }
     public String getNoListResult() { return str(R.string.no_list_result); }
