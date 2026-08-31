@@ -256,6 +256,15 @@ public class FunctionFactoryKt {
         return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.ROOT).format(new Date(timestamp));
     }
 
+    /**
+     * Long 转换为文件名安全时间（本地时区，无冒号，兼容文件系统）
+     * 格式：yyyy-MM-dd_HH-mm-ss-SSS（如 2026-09-01_05-56-36-123）
+     * 用于导出/分享的文件名，避免 toUtcTime 的冒号导致命名冲突。
+     */
+    public static String toFileNameTime(long timestamp) {
+        return new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.getDefault()).format(new Date(timestamp));
+    }
+
     /** 弹出 Toast */
     public static void toast(Context context, String msg) {
         try {

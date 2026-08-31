@@ -75,7 +75,7 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
                 Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("*/*");
-                intent.putExtra(Intent.EXTRA_TITLE, "app_errors_tracking_" + FunctionFactoryKt.toUtcTime(System.currentTimeMillis()) + ".log");
+                intent.putExtra(Intent.EXTRA_TITLE, "AppErrorNotify_" + FunctionFactoryKt.toFileNameTime(System.currentTimeMillis()) + ".log");
                 startActivityForResult(intent, WRITE_REQUEST_CODE);
             } catch (Exception e) {
                 FunctionFactoryKt.toast(this, "Start Android SAF failed");

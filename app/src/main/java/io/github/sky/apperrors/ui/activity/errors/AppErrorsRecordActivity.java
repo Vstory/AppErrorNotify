@@ -187,7 +187,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
             for (int index = 0; index < listData.size(); index++) {
                 AppErrorsInfoBean bean = listData.get(index);
                 String packageName = sPackageName ? bean.packageName : "anonymous_" + index;
-                File f = new File(path + "/" + packageName + "_" + bean.getUtcTime() + ".log");
+                File f = new File(path + "/" + packageName + "_" + bean.getFileNameTime() + ".log");
                 try {
                     java.io.FileWriter writer = new java.io.FileWriter(f);
                     writer.write(bean.stackOutputFileContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName));
@@ -201,7 +201,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                 Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("*/*");
-                intent.putExtra(Intent.EXTRA_TITLE, "app_errors_info_" + FunctionFactoryKt.toUtcTime(System.currentTimeMillis()) + ".zip");
+                intent.putExtra(Intent.EXTRA_TITLE, "AppErrorNotify_" + FunctionFactoryKt.toFileNameTime(System.currentTimeMillis()) + ".zip");
                 startActivityForResult(intent, WRITE_REQUEST_CODE);
             } catch (Exception e) {
                 FunctionFactoryKt.toast(this, "Start Android SAF failed");

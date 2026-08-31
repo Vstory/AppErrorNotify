@@ -137,7 +137,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
                             intent2.addCategory(Intent.CATEGORY_OPENABLE);
                             intent2.setType("*/*");
                             String packageName = sPackageName ? appErrorsInfo.packageName : "anonymous";
-                            intent2.putExtra(Intent.EXTRA_TITLE, packageName + "_" + appErrorsInfo.getUtcTime() + ".log");
+                            intent2.putExtra(Intent.EXTRA_TITLE, packageName + "_" + appErrorsInfo.getFileNameTime() + ".log");
                             startActivityForResult(intent2, WRITE_REQUEST_CODE);
                         } catch (Exception e) {
                             FunctionFactoryKt.toast(this, "Start Android SAF failed");
