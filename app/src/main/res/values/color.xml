@@ -3,4 +3,6 @@
     <color name="colorThemeBackground">#FFFFFFFF</color>
     <color name="colorTextDark">#FF777777</color>
     <color name="colorTextGray">#FF323B42</color>
+    <color name="colorStackBackground">#FFF7F8FA</color>
+    <color name="colorStackError">#FFE53935</color>
 </resources>

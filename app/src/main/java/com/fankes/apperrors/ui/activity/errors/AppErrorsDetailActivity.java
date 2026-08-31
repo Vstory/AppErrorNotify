@@ -8,9 +8,15 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Typeface;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.util.Log;
 import android.widget.TextView;
 
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.view.ViewKt;
 
@@ -189,8 +195,8 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         bindCopyValue(binding.errorThrowMethodText);
         bindCopyValue(binding.errorLineNumberText);
         bindCopyValue(binding.errorRecordTimeText);
-        binding.errorStackTraceMovableText.setText(appErrorsInfo.stackTrace);
-        binding.errorStackTraceFixedText.setText(appErrorsInfo.stackTrace);
+        binding.errorStackTraceMovableText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace));
+        binding.errorStackTraceFixedText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace));
         binding.appPanelScrollView.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
             @Override
             public void onScrollChange(android.view.View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
@@ -200,6 +206,23 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
             }
         });
         return true;
+    }
+
+    /**
+     * 堆栈着色（借鉴 LSPosed 日志界面风格）：首行异常信息红色加粗，其余堆栈帧跟随主题灰。
+     * 支持 JVM 异常与 native crash 两种格式（首行为摘要行，native 的摘要含信号信息）。
+     */
+    private CharSequence buildStyledStackTrace(String stackTrace) {
+        if (stackTrace == null || stackTrace.isEmpty()) return "";
+        SpannableString spannable = new SpannableString(stackTrace);
+        int firstLineEnd = stackTrace.indexOf('\n');
+        int headEnd = firstLineEnd > 0 ? firstLineEnd : stackTrace.length();
+        spannable.setSpan(new ForegroundColorSpan(ContextCompat.getColor(this, R.color.colorStackError)), 0, headEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        spannable.setSpan(new StyleSpan(Typeface.BOLD), 0, headEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (firstLineEnd > 0) {
+            spannable.setSpan(new ForegroundColorSpan(ContextCompat.getColor(this, R.color.colorTextGray)), firstLineEnd, stackTrace.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return spannable;
     }
 
     /** 点击字段值复制到剪贴板（只复制值，不含标签；空值不响应） */

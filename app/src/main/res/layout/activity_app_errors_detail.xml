@@ -512,7 +512,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
                     android:lineSpacingExtra="5dp"
-                    android:textColor="#B65B57"
+                    android:textColor="@color/colorTextGray"
                     android:textIsSelectable="true"
                     android:textSize="12sp"
                     android:typeface="monospace" />
@@ -527,7 +527,7 @@
                 android:background="@drawable/bg_stack_round"
                 android:lineSpacingExtra="5dp"
                 android:padding="15dp"
-                android:textColor="#B65B57"
+                android:textColor="@color/colorTextGray"
                 android:textIsSelectable="true"
                 android:textSize="12sp"
                 android:typeface="monospace" />
