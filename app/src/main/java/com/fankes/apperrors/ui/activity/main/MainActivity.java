@@ -41,9 +41,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         checkingTopComponentName();
         /** 设置 CI 自动构建标识 */
         if (ModuleVersion.isCiMode()) {
-            binding.mainTextReleaseVersion.setText("CI " + ModuleVersion.GITHUB_COMMIT_ID);
-            ViewKt.setVisible(binding.mainTextReleaseVersion, true);
-            binding.mainTextReleaseVersion.setOnClickListener(v -> {
+            binding.mainTitle.setText("CI " + ModuleVersion.GITHUB_COMMIT_ID);
+            binding.mainTitle.setOnClickListener(v -> {
                 DialogBuilder<?> dlg = new DialogBuilder<>(this);
                 dlg.setTitle(LocaleFactoryKt.getLocale().getCiNoticeDialogTitle());
                 dlg.setMsg(LocaleFactoryKt.getLocale().ciNoticeDialogContent(ModuleVersion.GITHUB_COMMIT_ID));
@@ -52,8 +51,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
                 dlg.show();
             });
         }
-        binding.mainTextVersion.setText(LocaleFactoryKt.getLocale().moduleVersion(ModuleVersion.INSTANCE.toString()));
-        binding.mainTextSystemVersion.setText(LocaleFactoryKt.getLocale().systemVersion(systemVersion));
+        binding.mainTextModuleVersion.setText(LocaleFactoryKt.getLocale().moduleVersion(ModuleVersion.INSTANCE.toString()));
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInFrontSwitch,
                 () -> ConfigData.isEnableOnlyShowErrorsInFront(),
                 value -> ConfigData.setEnableOnlyShowErrorsInFront(value), null);
@@ -69,14 +67,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
                     binder.onInitialize(checked -> ViewKt.setVisible(binding.mgrAppsConfigsTemplateButton, checked));
                     binder.onChanged(checked -> binder.reinitialize());
                 });
-        /** 系统版本点击事件 */
-        binding.mainTextSystemVersion.setOnClickListener(v -> {
-            DialogBuilder<?> dlg = new DialogBuilder<>(this);
-            dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
-            dlg.setMsg(systemVersion);
-            dlg.confirmButton(LocaleFactoryKt.getLocale().getGotIt());
-            dlg.show();
-        });
         /** 管理应用配置模板按钮点击事件 */
         binding.mgrAppsConfigsTemplateButton.setOnClickListener(v -> whenActivated(() -> navigateTo(ConfigureActivity.class)));
         /** 功能管理按钮点击事件 */
@@ -103,7 +93,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         refreshInfoCard();
     }
 
-    /** 填充信息卡（框架/模块/系统/设备/ABI/包名）+ 复制按钮（对齐 LSPosed 概览页） */
+    /** 填充信息卡（框架/模块/系统/设备/ABI/包名，对齐 LSPosed 概览页 info_card） */
     private void initInfoCard() {
         binding.infoFrameworkVersionValue.setText(getString(R.string.not_installed));
         binding.infoModuleVersionValue.setText(ModuleVersion.INSTANCE.toString());
@@ -111,16 +101,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         binding.infoDeviceValue.setText(getDevice());
         binding.infoAbiValue.setText(Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : getString(R.string.no_cpu_abi));
         binding.infoPackageValue.setText(getPackageName());
-        binding.copyInfo.setOnClickListener(v -> {
-            StringBuilder sb = new StringBuilder();
-            sb.append(getString(R.string.info_framework_version)).append("\n").append(binding.infoFrameworkVersionValue.getText()).append("\n\n");
-            sb.append(getString(R.string.info_module_version)).append("\n").append(binding.infoModuleVersionValue.getText()).append("\n\n");
-            sb.append(getString(R.string.info_system_version)).append("\n").append(binding.infoSystemVersionValue.getText()).append("\n\n");
-            sb.append(getString(R.string.info_device)).append("\n").append(binding.infoDeviceValue.getText()).append("\n\n");
-            sb.append(getString(R.string.info_abi)).append("\n").append(binding.infoAbiValue.getText()).append("\n\n");
-            sb.append(getString(R.string.info_package_name)).append("\n").append(binding.infoPackageValue.getText());
-            FunctionFactoryKt.copyToClipboard(this, sb.toString());
-        });
     }
 
     /** 运行时刷新信息卡框架字段（与状态卡联动，避免"已激活但框架版本未安装"不一致） */
@@ -147,18 +127,34 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         startActivity(intent);
     }
 
-    /** 刷新模块状态 */
+    /** 刷新模块状态（激活卡：浅绿底深字，对齐 LSPosed 概览页） */
     private void refreshModuleStatus() {
-        binding.mainLinStatus.setCardBackgroundColor(
-                ModuleServiceHolder.isActive() && !isModuleValied ? ContextCompat.getColor(this, R.color.statusPartial)
-                        : ModuleServiceHolder.isActive() ? ContextCompat.getColor(this, R.color.statusActive)
-                        : ContextCompat.getColor(this, R.color.statusInactive));
-        binding.mainImgStatus.setImageResource(ModuleServiceHolder.isActive() ? R.drawable.ic_success : R.drawable.ic_warn);
-        binding.mainTextStatus.setText(ModuleServiceHolder.isActive() && !isModuleValied
+        boolean active = ModuleServiceHolder.isActive();
+        boolean partial = active && !isModuleValied;
+        // 激活卡背景：激活/部分=浅容器色，未激活=深灰（Material3 primaryContainer 风格）
+        int bgColor;
+        int statusTextColor;
+        if (partial) {
+            bgColor = ContextCompat.getColor(this, R.color.statusPartial);
+            statusTextColor = ContextCompat.getColor(this, R.color.statusPartialText);
+        } else if (active) {
+            bgColor = ContextCompat.getColor(this, R.color.statusActive);
+            statusTextColor = ContextCompat.getColor(this, R.color.statusActiveText);
+        } else {
+            bgColor = ContextCompat.getColor(this, R.color.statusInactive);
+            statusTextColor = ContextCompat.getColor(this, R.color.statusInactiveText);
+        }
+        binding.mainLinStatus.setCardBackgroundColor(bgColor);
+        binding.mainImgStatus.setImageResource(active ? R.drawable.ic_success : R.drawable.ic_warn);
+        binding.mainImgStatus.setImageTintList(ContextCompat.getColorStateList(this, statusTextColor));
+        binding.mainTextStatus.setTextColor(statusTextColor);
+        binding.mainTextApiWay.setTextColor(statusTextColor);
+        binding.mainTextModuleVersion.setTextColor(statusTextColor);
+        binding.mainTextStatus.setText(partial
                 ? LocaleFactoryKt.getLocale().getModuleNotFullyActivated()
-                : ModuleServiceHolder.isActive() ? LocaleFactoryKt.getLocale().getModuleIsActivated()
+                : active ? LocaleFactoryKt.getLocale().getModuleIsActivated()
                 : LocaleFactoryKt.getLocale().getModuleNotActivated());
-        ViewKt.setVisible(binding.mainTextApiWay, ModuleServiceHolder.isActive());
+        ViewKt.setVisible(binding.mainTextApiWay, active);
         XposedService service = ModuleServiceHolder.getService();
         binding.mainTextApiWay.setText(service != null
                 ? "Activated by " + service.getFrameworkName() + " API " + service.getApiVersion() : "");

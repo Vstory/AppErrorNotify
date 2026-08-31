@@ -12,7 +12,20 @@
         <!-- Status bar color. -->
         <item name="android:statusBarColor">@color/white</item>
         <item name="android:windowLightStatusBar">true</item>
-        <!-- Customize your theme here. -->
+        <!-- Material3 容器色（激活卡浅绿/白卡等） -->
+        <item name="colorPrimaryContainer">#FFD8F3E8</item>
+        <item name="colorOnPrimaryContainer">#FF1B5A44</item>
+        <item name="colorSurface">@color/cardBackground</item>
+        <item name="colorOnSurface">@color/colorTextGray</item>
+        <!-- 自定义你的 Material 主题 -->
+    </style>
+
+    <!-- MaterialCardView 统一圆角（对齐 LSPosed 概览页白色无边框卡） -->
+    <style name="Widget.AppErrors.Card" parent="">
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardBackgroundColor">@color/cardBackground</item>
+        <item name="strokeWidth">0dp</item>
     </style>
 
     <!-- LSPosed 概览页信息卡 label 样式 -->

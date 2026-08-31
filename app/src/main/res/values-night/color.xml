@@ -5,7 +5,11 @@
     <color name="colorTextGray">#FFD3D3D3</color>
     <color name="colorStackBackground">#FF383838</color>
     <color name="colorStackError">#FFFF5252</color>
-    <color name="statusActive">#FF26A69A</color>
-    <color name="statusPartial">#FFFF9800</color>
+    <color name="statusActive">#FF1E5B44</color>
+    <color name="statusActiveText">#FFB3E8D3</color>
+    <color name="statusPartial">#FF5C3D00</color>
+    <color name="statusPartialText">#FFFFD9A0</color>
     <color name="statusInactive">#FF3A3A3A</color>
+    <color name="statusInactiveText">#FFFFFFFF</color>
+    <color name="cardBackground">#FF383838</color>
 </resources>
