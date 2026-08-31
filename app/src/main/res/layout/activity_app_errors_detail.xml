@@ -561,7 +561,8 @@
                 android:textColor="@color/colorTextGray"
                 android:textSize="15sp" />
 
-            <FrameLayout
+            <io.github.sky.apperrors.ui.widget.ZoomableLayout
+                android:id="@+id/error_stack_trace_zoom_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
@@ -580,7 +581,7 @@
                     android:scrollbars="none"
                     android:visibility="gone">
 
-                <io.github.sky.apperrors.ui.widget.ZoomableTextView
+                <TextView
                     android:id="@+id/error_stack_trace_movable_text"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
@@ -591,7 +592,7 @@
                     android:typeface="monospace" />
             </HorizontalScrollView>
 
-            <io.github.sky.apperrors.ui.widget.ZoomableTextView
+            <TextView
                 android:id="@+id/error_stack_trace_fixed_text"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -619,7 +620,7 @@
                     android:padding="4dp"
                     android:src="@drawable/ic_copy"
                     android:tint="@color/colorTextGray" />
-            </FrameLayout>
+            </io.github.sky.apperrors.ui.widget.ZoomableLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>
