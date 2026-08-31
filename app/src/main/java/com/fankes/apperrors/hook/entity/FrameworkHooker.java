@@ -6,7 +6,12 @@ package com.fankes.apperrors.hook.entity;
 
 import android.app.ApplicationErrorReport;
 import android.app.Dialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -14,6 +19,7 @@ import android.content.pm.ApplicationInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
@@ -31,6 +37,7 @@ import com.fankes.apperrors.data.ConfigData;
 import com.fankes.apperrors.data.MutedErrorsData;
 import com.fankes.apperrors.data.enums.AppErrorsConfigType;
 import com.fankes.apperrors.locale.LocaleFactoryKt;
+import com.fankes.apperrors.ui.activity.errors.AppErrorsDetailActivity;
 import com.fankes.apperrors.ui.activity.errors.AppErrorsDisplayActivity;
 import com.fankes.apperrors.ui.activity.errors.AppErrorsRecordActivity;
 import com.fankes.apperrors.utils.factory.FunctionFactoryKt;
@@ -531,22 +538,9 @@ public class FrameworkHooker {
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
             FunctionFactoryKt.toast(context, "AppErrorsTracking has crashed, please see the log in console");
             logError("AppErrorsTracking has crashed itself, please see the Android Runtime Exception in console");
-        } else if (ConfigData.isEnableAppConfigTemplate()) {
-            if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.GLOBAL, d.packageName())) {
-                if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, ""))
-                    showAppErrorsWithDialog(context, d, appName, errorTitle);
-                else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, ""))
-                    showAppErrorsWithNotify(context, errorTitle);
-                else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, ""))
-                    FunctionFactoryKt.toast(context, errorTitle);
-            } else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, d.packageName()))
-                showAppErrorsWithDialog(context, d, appName, errorTitle);
-            else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, d.packageName()))
-                showAppErrorsWithNotify(context, errorTitle);
-            else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, d.packageName()))
-                FunctionFactoryKt.toast(context, errorTitle);
         } else {
-            showAppErrorsWithDialog(context, d, appName, errorTitle);
+            // 统一改为发送系统通知（不弹窗口/气泡，见需求：拦截崩溃弹窗 → 通知带按钮跳转模块 UI 看详情）
+            sendCrashNotification(context, d, appName, errorTitle);
         }
 
         /** 打印错误日志 */
@@ -560,18 +554,72 @@ public class FrameworkHooker {
         }
     }
 
-    private static void showAppErrorsWithNotify(Context context, String errorTitle) {
-        IconCompat icon;
-        android.content.res.Resources res = moduleResources();
-        Drawable dIcon = res != null ? FunctionFactoryKt.drawableOf(res, R.drawable.ic_notify) : null;
-        if (dIcon != null) {
-            icon = IconCompat.createWithBitmap(toBitmap(dIcon));
-        } else {
-            icon = IconCompat.createWithResource(context, android.R.drawable.stat_notify_error);
+    /**
+     * 发送崩溃通知（需求：不弹窗口/气泡 → 系统通知）
+     * - contentIntent：点击通知打开模块异常记录列表
+     * - action 按钮「查看详情」：跳转模块 AppErrorsDetailActivity 查看具体崩溃信息
+     * 由 system_server（uid=1000）发送，无需运行时权限；通知 channel 幂等创建
+     */
+    private static void sendCrashNotification(Context context, AppErrorsProcessData d, String appName, String errorTitle) {
+        try {
+            NotificationManager manager = context.getSystemService(NotificationManager.class);
+            if (manager == null) return;
+            String channelId = "APPS_ERRORS";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                manager.createNotificationChannel(new NotificationChannel(channelId,
+                        LocaleFactoryKt.getLocale().getAppName(), NotificationManager.IMPORTANCE_HIGH));
+
+            // 通知图标：优先模块资源 ic_notify（转 bitmap），fallback 系统 stat_notify_error
+            android.graphics.drawable.Icon icon;
+            android.content.res.Resources res = moduleResources();
+            Drawable dIcon = res != null ? FunctionFactoryKt.drawableOf(res, R.drawable.ic_notify) : null;
+            if (dIcon != null) {
+                icon = Icon.createWithBitmap(toBitmap(dIcon));
+            } else {
+                icon = Icon.createWithResource(context, android.R.drawable.stat_notify_error);
+            }
+
+            // 找到对应崩溃记录（详情页用；pid 匹配 allData 最新记录）
+            com.fankes.apperrors.bean.AppErrorsInfoBean bean = null;
+            for (com.fankes.apperrors.bean.AppErrorsInfoBean b : AppErrorsRecordData.allData) {
+                if (b.pid == d.pid()) { bean = b; break; }
+            }
+            if (bean == null) {
+                ApplicationInfo ai = d.appInfo();
+                bean = com.fankes.apperrors.bean.AppErrorsInfoBean.clone(context, d.pid(), d.userId(),
+                        ai != null ? ai.packageName : d.packageName(), null);
+            }
+
+            // contentIntent：打开模块异常记录列表
+            Intent listIntent = AppErrorsRecordActivity.Companion.intent();
+            listIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            PendingIntent contentPi = PendingIntent.getActivity(context, 0, listIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            // action 按钮「查看详情」：跳转 AppErrorsDetailActivity 带具体崩溃信息
+            Intent detailIntent = new Intent();
+            detailIntent.setComponent(new ComponentName(BuildConfigWrapper.APPLICATION_ID,
+                    AppErrorsDetailActivity.class.getName()));
+            detailIntent.putExtra("app_errors_info_extra", bean);
+            detailIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            PendingIntent detailPi = PendingIntent.getActivity(context, 1, detailIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            Notification.Builder builder = new Notification.Builder(context, channelId)
+                    .setSmallIcon(icon)
+                    .setColor(0xFFFF6200)
+                    .setAutoCancel(true)
+                    .setContentTitle(errorTitle)
+                    .setContentText(LocaleFactoryKt.getLocale().getAppErrorsTip())
+                    .setContentIntent(contentPi)
+                    .addAction(0, LocaleFactoryKt.getLocale().getMore(), detailPi)
+                    .setDefaults(Notification.DEFAULT_ALL);
+            // notificationId 用 pid：同一进程反复崩溃覆盖同一条通知，不堆积
+            manager.notify(d.pid(), builder.build());
+            logInfo("Crash notification sent: " + errorTitle + " (pid " + d.pid() + ")");
+        } catch (Throwable t) {
+            logWarn("Send crash notification failed: " + t);
         }
-        FunctionFactoryKt.pushNotify(context, "APPS_ERRORS", LocaleFactoryKt.getLocale().getAppName(),
-                errorTitle, LocaleFactoryKt.getLocale().getAppErrorsTip(), icon, 0xFFFF6200,
-                AppErrorsRecordActivity.Companion.intent());
     }
 
     private static void showAppErrorsWithDialog(Context context, AppErrorsProcessData d, String appName, String errorTitle) {
