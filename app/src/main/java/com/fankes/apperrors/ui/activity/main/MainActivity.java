@@ -51,7 +51,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
                 dlg.show();
             });
         }
-        binding.mainTextVersion.setText(LocaleFactoryKt.getLocale().moduleVersion(ModuleVersion.NAME));
+        binding.mainTextVersion.setText(LocaleFactoryKt.getLocale().moduleVersion(ModuleVersion.INSTANCE.toString()));
         binding.mainTextSystemVersion.setText(LocaleFactoryKt.getLocale().systemVersion(systemVersion));
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInFrontSwitch,
                 () -> ConfigData.isEnableOnlyShowErrorsInFront(),
@@ -83,8 +83,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         binding.viewMutedErrorsAppsButton.setOnClickListener(v -> whenActivated(() -> navigateTo(AppErrorsMutedActivity.class)));
         /** 调试日志按钮点击事件 */
         binding.titleLoggerIcon.setOnClickListener(v -> navigateTo(LoggerActivity.class));
-        /** 重启按钮点击事件 */
-        binding.titleRestartIcon.setOnClickListener(v -> FrameworkTool.restartSystem(this));
         /** 项目地址按钮点击事件 */
         binding.titleGithubIcon.setOnClickListener(v -> FunctionFactoryKt.openBrowser(this, "https://github.com/Vstory/com.fankes.apperrors", ""));
         /** 关于本项目 → 跳转原项目 GitHub（标题/链接行/整卡均可点，水波纹反馈） */

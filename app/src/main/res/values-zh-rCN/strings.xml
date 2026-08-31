@@ -47,7 +47,6 @@
     <string name="remove_record">移除记录</string>
     <string name="are_you_sure_remove_record">你确定要移除这条记录吗？</string>
     <string name="got_it">我知道了</string>
-    <string name="restart_system">重启系统</string>
     <string name="project_address">项目地址</string>
     <string name="module_not_activated">模块未激活</string>
     <string name="module_version">模块版本：%1$s</string>
