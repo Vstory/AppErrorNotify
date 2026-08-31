@@ -181,6 +181,14 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         binding.errorThrowMethodText.setText(appErrorsInfo.throwMethodName);
         binding.errorLineNumberText.setText(String.valueOf(appErrorsInfo.throwLineNumber));
         binding.errorRecordTimeText.setText(appErrorsInfo.getDateTime());
+        /** 点击字段值复制到剪贴板（只复制值，不含标签） */
+        bindCopyValue(binding.errorInfoText);
+        bindCopyValue(binding.errorTypeText);
+        bindCopyValue(binding.errorFileNameText);
+        bindCopyValue(binding.errorThrowClassText);
+        bindCopyValue(binding.errorThrowMethodText);
+        bindCopyValue(binding.errorLineNumberText);
+        bindCopyValue(binding.errorRecordTimeText);
         binding.errorStackTraceMovableText.setText(appErrorsInfo.stackTrace);
         binding.errorStackTraceFixedText.setText(appErrorsInfo.stackTrace);
         binding.appPanelScrollView.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
@@ -192,6 +200,14 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
             }
         });
         return true;
+    }
+
+    /** 点击字段值复制到剪贴板（只复制值，不含标签；空值不响应） */
+    private void bindCopyValue(android.widget.TextView view) {
+        view.setOnClickListener(v -> {
+            String value = view.getText() == null ? "" : view.getText().toString();
+            if (!value.trim().isEmpty()) FunctionFactoryKt.copyToClipboard(this, value);
+        });
     }
 
     /** 修复在一些小屏设备上设置了 setTextIsSelectable 后布局自动上滑问题 */

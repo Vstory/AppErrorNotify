@@ -276,6 +276,7 @@
 
                         <TextView
                             android:id="@+id/error_info_text"
+                    android:background="?android:attr/selectableItemBackground"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:lineSpacingExtra="5dp"
@@ -312,6 +313,7 @@
 
                             <TextView
                                 android:id="@+id/error_type_text"
+                    android:background="?android:attr/selectableItemBackground"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:ellipsize="end"
@@ -341,6 +343,7 @@
 
                             <TextView
                                 android:id="@+id/error_file_name_text"
+                    android:background="?android:attr/selectableItemBackground"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:ellipsize="end"
@@ -370,6 +373,7 @@
 
                             <TextView
                                 android:id="@+id/error_throw_class_text"
+                    android:background="?android:attr/selectableItemBackground"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:ellipsize="end"
@@ -399,6 +403,7 @@
 
                             <TextView
                                 android:id="@+id/error_throw_method_text"
+                    android:background="?android:attr/selectableItemBackground"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:ellipsize="end"
@@ -427,6 +432,7 @@
 
                             <TextView
                                 android:id="@+id/error_line_number_text"
+                    android:background="?android:attr/selectableItemBackground"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:ellipsize="end"
@@ -456,6 +462,7 @@
 
                         <TextView
                             android:id="@+id/error_record_time_text"
+                    android:background="?android:attr/selectableItemBackground"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:ellipsize="end"
