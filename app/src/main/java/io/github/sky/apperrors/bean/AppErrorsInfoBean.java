@@ -128,10 +128,10 @@ public class AppErrorsInfoBean implements Serializable {
                 LocaleFactoryKt.getLocale().getYearAgo());
     }
 
-    /** 获取异常本地化时间（固定格式：2026-08-23,22:22:03） */
+    /** 获取异常本地化时间（固定格式：2026-08-23 22:22:03.123，空格分隔，精确到毫秒） */
     public String getDateTime() {
         try {
-            return new SimpleDateFormat("yyyy-MM-dd,HH:mm:ss", Locale.getDefault()).format(new Date(timestamp));
+            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(new Date(timestamp));
         } catch (Exception e) {
             return getUtcTime();
         }
