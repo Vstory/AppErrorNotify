@@ -65,4 +65,9 @@
 
 ## License
 
-继承原项目开源协议（详见原仓库 [KitsunePie/AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking)）。
+本项目为 [KitsunePie/AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking) 的 Java 改造版（衍生作品），沿用原项目 **GNU AGPL-3.0** 开源协议。
+
+- Copyright (C) 2017 Fankes Studio (qzmmcn@163.com)
+- Copyright (C) 2026 Vstory (Java rework)
+
+完整协议见 [LICENSE](LICENSE)。
