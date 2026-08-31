@@ -409,6 +409,11 @@ public class FrameworkHooker {
                         } else if (ACTION_UNMUTE_ALL.equals(action)) {
                             MutedErrorsData.unmuteAllErrorsApps();
                             logInfo("Mute channel: unmuted all apps");
+                        } else if (AppErrorsConfigData.ACTION_CONFIG_CHANGED.equals(action)) {
+                            // 配置模板变更：UI 保存后立即刷新内存 Set（原版靠 onRefreshFrameworkPrefsData 回调，
+                            //  libxposed 无此回调 → 用广播等价；崩溃时读时刷新仍兜底）
+                            AppErrorsConfigData.refresh();
+                            logInfo("Config channel: refreshed app config template from UI");
                         }
                     } catch (Throwable t) {
                         logWarn("Error channel handle failed: " + t);
@@ -424,6 +429,7 @@ public class FrameworkHooker {
             filter.addAction(ACTION_MUTE_ERROR);
             filter.addAction(ACTION_UNMUTE_ERROR);
             filter.addAction(ACTION_UNMUTE_ALL);
+            filter.addAction(AppErrorsConfigData.ACTION_CONFIG_CHANGED);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             else

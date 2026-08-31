@@ -45,6 +45,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
         binding.globalIcon.setOnClickListener(v -> {
             showAppConfigDialog(LocaleFactoryKt.getLocale().getGlobalConfig(), "", false, false, type -> {
                 AppErrorsConfigData.putAppShowingType(type, "");
+                AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
                 if (onChanged != null) onChanged.run();
             });
         });
@@ -56,6 +57,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                 dlg.confirmButton(() -> {
                     for (AppInfoBean bean : listData)
                         AppErrorsConfigData.putAppShowingType(type, bean.packageName);
+                    AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
                     if (onChanged != null) onChanged.run();
                 });
                 dlg.cancelButton();
@@ -116,6 +118,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
             AppInfoBean bean = listData.get(position);
             showAppConfigDialog(bean.name, bean.packageName, false, true, type -> {
                 AppErrorsConfigData.putAppShowingType(type, bean.packageName);
+                AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
                 if (onChanged != null) onChanged.run();
             });
         });

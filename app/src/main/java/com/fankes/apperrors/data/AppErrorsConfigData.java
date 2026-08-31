@@ -103,5 +103,18 @@ public class AppErrorsConfigData {
         ConfigData.putStringSet(SHOW_ERRORS_NOTHING_APPS, showNothingApps);
     }
 
+    // ===== 配置变更广播（UI → system_server：保存后通知 hook 立即 refresh，避免等下次崩溃才生效） =====
+
+    /** 广播 action：UI 保存应用配置模板后通知 system_server 刷新 */
+    public static final String ACTION_CONFIG_CHANGED = "com.fankes.apperrors.action.CONFIG_CHANGED";
+
+    /** UI 保存配置后调用：广播 → system_server 收到后立即 AppErrorsConfigData.refresh() */
+    public static void notifyConfigChanged(android.content.Context context) {
+        try {
+            context.sendBroadcast(new android.content.Intent(ACTION_CONFIG_CHANGED));
+        } catch (Throwable ignored) {
+        }
+    }
+
     private AppErrorsConfigData() {}
 }
