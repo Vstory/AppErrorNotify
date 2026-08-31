@@ -59,9 +59,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInMainProcessSwitch,
                 () -> ConfigData.isEnableOnlyShowErrorsInMain(),
                 value -> ConfigData.setEnableOnlyShowErrorsInMain(value), null);
-        CompoundButtonFactoryKt.bind(binding.alwaysShowsReopenAppOptionsSwitch,
-                () -> ConfigData.isEnableAlwaysShowsReopenAppOptions(),
-                value -> ConfigData.setEnableAlwaysShowsReopenAppOptions(value), null);
         CompoundButtonFactoryKt.bind(binding.shareWithFile,
                 () -> ConfigData.isShareWithFile(),
                 value -> ConfigData.setShareWithFile(value), null);
@@ -71,12 +68,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
                     binder.onInitialize(checked -> ViewKt.setVisible(binding.mgrAppsConfigsTemplateButton, checked));
                     binder.onChanged(checked -> binder.reinitialize());
                 });
-        CompoundButtonFactoryKt.bind(binding.errorsDialogPreventMisoperationSwitch,
-                () -> ConfigData.isEnablePreventMisoperation(),
-                value -> ConfigData.setEnablePreventMisoperation(value), null);
-        CompoundButtonFactoryKt.bind(binding.enableMaterial3AppErrorsDialogSwitch,
-                () -> ConfigData.isEnableMaterial3StyleAppErrorsDialog(),
-                value -> ConfigData.setEnableMaterial3StyleAppErrorsDialog(value), null);
         /** 系统版本点击事件 */
         binding.mainTextSystemVersion.setOnClickListener(v -> {
             DialogBuilder<?> dlg = new DialogBuilder<>(this);
@@ -95,7 +86,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         /** 重启按钮点击事件 */
         binding.titleRestartIcon.setOnClickListener(v -> FrameworkTool.restartSystem(this));
         /** 项目地址按钮点击事件 */
-        binding.titleGithubIcon.setOnClickListener(v -> FunctionFactoryKt.openBrowser(this, "https://github.com/KitsunePie/AppErrorsTracking", ""));
+        binding.titleGithubIcon.setOnClickListener(v -> FunctionFactoryKt.openBrowser(this, "https://github.com/Vstory/com.fankes.apperrors", ""));
         /** 关于本项目 → 跳转原项目 GitHub（标题/链接行/整卡均可点，水波纹反馈） */
         android.view.View.OnClickListener openGithub = v ->
                 FunctionFactoryKt.openBrowser(this, "https://github.com/KitsunePie/AppErrorsTracking", "");
