@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <uses-permission
+        android:name="android.permission.INTERACT_ACROSS_USERS"
+        tools:ignore="ProtectedPermissions" />
+
+    <uses-permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+    <permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+
+    <application
+        android:name=".application.AppErrorsApplication"
+        android:allowBackup="true"
+        android:description="@string/module_desc"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppErrorsTracking"
+        tools:targetApi="tiramisu">
+
+        <activity
+            android:name=".ui.activity.main.MainActivity"
+            android:exported="true"
+            android:screenOrientation="behind">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.activity.main.ConfigureActivity"
+            android:exported="false"
+            android:screenOrientation="behind" />
+
+        <activity
+            android:name=".ui.activity.debug.LoggerActivity"
+            android:exported="false"
+            android:screenOrientation="behind" />
+
+        <activity
+            android:name=".ui.activity.errors.AppErrorsRecordActivity"
+            android:exported="true"
+            android:screenOrientation="behind" />
+
+        <activity
+            android:name=".ui.activity.errors.AppErrorsMutedActivity"
+            android:exported="false"
+            android:screenOrientation="behind" />
+
+        <activity
+            android:name=".ui.activity.errors.AppErrorsDisplayActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/empty_lable"
+            android:launchMode="singleTask"
+            android:screenOrientation="behind"
+            android:taskAffinity=":display"
+            android:theme="@style/Theme.AppErrorsTracking.Translucent" />
+
+        <activity
+            android:name=".ui.activity.errors.AppErrorsDetailActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=":detail" />
+
+        <service
+            android:name=".service.QuickStartTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_debug"
+            android:label="@string/errors_record"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- ⚠️ libxposed service 必须声明（jar 不会自动合并 manifest）：
+             缺这个 → 框架找不到 XposedProvider → 不发 binder → UI 永远"模块未激活" -->
+        <provider
+            android:name="io.github.libxposed.service.XposedProvider"
+            android:authorities="${applicationId}.XposedService"
+            android:exported="true"
+            tools:ignore="ExportedContentProvider" />
+    </application>
+</manifest>
