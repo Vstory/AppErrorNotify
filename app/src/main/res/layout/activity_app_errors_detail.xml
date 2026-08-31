@@ -264,6 +264,69 @@
                         android:orientation="horizontal">
 
                         <TextView
+                            android:id="@+id/error_package_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="10dp"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:text="@string/info_package_name"
+                            android:textColor="@color/colorTextDark"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/error_package_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:textColor="@color/colorTextGray"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="10dp"
+                        android:gravity="center|start|top"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/error_version_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="10dp"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:text="@string/error_version"
+                            android:textColor="@color/colorTextDark"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/error_version_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:textColor="@color/colorTextGray"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="10dp"
+                        android:gravity="center|start|top"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/error_info_label"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="10dp"
@@ -301,6 +364,7 @@
                             android:orientation="horizontal">
 
                             <TextView
+                                android:id="@+id/error_type_label"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginEnd="10dp"
@@ -331,6 +395,7 @@
                             android:orientation="horizontal">
 
                             <TextView
+                                android:id="@+id/error_file_name_label"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginEnd="10dp"
@@ -361,6 +426,7 @@
                             android:orientation="horizontal">
 
                             <TextView
+                                android:id="@+id/error_throw_class_label"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginEnd="10dp"
@@ -391,6 +457,7 @@
                             android:orientation="horizontal">
 
                             <TextView
+                                android:id="@+id/error_throw_method_label"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginEnd="10dp"
@@ -420,6 +487,7 @@
                             android:orientation="horizontal">
 
                             <TextView
+                                android:id="@+id/error_line_number_label"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginEnd="10dp"
@@ -450,6 +518,7 @@
                         android:orientation="horizontal">
 
                         <TextView
+                            android:id="@+id/error_record_time_label"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="10dp"
@@ -492,20 +561,24 @@
                 android:textColor="@color/colorTextGray"
                 android:textSize="15sp" />
 
-            <HorizontalScrollView
-                android:id="@+id/error_stack_trace_scroll_view"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginLeft="10dp"
-                android:layout_marginRight="10dp"
-                android:background="@drawable/bg_stack_round"
-                android:fadingEdgeLength="10dp"
-                android:fillViewport="true"
-                android:overScrollMode="never"
-                android:padding="15dp"
-                android:requiresFadingEdge="horizontal"
-                android:scrollbars="none"
-                android:visibility="gone">
+                android:layout_height="wrap_content">
+
+                <HorizontalScrollView
+                    android:id="@+id/error_stack_trace_scroll_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_marginLeft="10dp"
+                    android:layout_marginRight="10dp"
+                    android:background="@drawable/bg_stack_round"
+                    android:fadingEdgeLength="10dp"
+                    android:fillViewport="true"
+                    android:overScrollMode="never"
+                    android:padding="15dp"
+                    android:requiresFadingEdge="horizontal"
+                    android:scrollbars="none"
+                    android:visibility="gone">
 
                 <TextView
                     android:id="@+id/error_stack_trace_movable_text"
@@ -531,6 +604,22 @@
                 android:textIsSelectable="true"
                 android:textSize="12sp"
                 android:typeface="monospace" />
+
+                <!-- 堆栈右上角小复制按钮：点击复制堆栈内容（只堆栈，不含设备信息） -->
+                <androidx.constraintlayout.utils.widget.ImageFilterView
+                    android:id="@+id/stack_copy_button"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="top|end"
+                    android:layout_marginTop="14dp"
+                    android:layout_marginEnd="18dp"
+                    android:alpha="0.85"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/copy_error_stack"
+                    android:padding="4dp"
+                    android:src="@drawable/ic_copy"
+                    android:tint="@color/colorTextGray" />
+            </FrameLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

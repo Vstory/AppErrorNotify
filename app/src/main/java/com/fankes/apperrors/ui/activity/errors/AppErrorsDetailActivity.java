@@ -187,6 +187,9 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         binding.errorThrowMethodText.setText(appErrorsInfo.throwMethodName);
         binding.errorLineNumberText.setText(String.valueOf(appErrorsInfo.throwLineNumber));
         binding.errorRecordTimeText.setText(appErrorsInfo.getDateTime());
+        /** 信息卡顶部新增：崩溃应用包名 + 版本名(版本码) */
+        binding.errorVersionText.setText(appErrorsInfo.getVersionBrand());
+        binding.errorPackageText.setText(appErrorsInfo.packageName);
         /** 点击字段值复制到剪贴板（只复制值，不含标签） */
         bindCopyValue(binding.errorInfoText);
         bindCopyValue(binding.errorTypeText);
@@ -195,6 +198,22 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         bindCopyValue(binding.errorThrowMethodText);
         bindCopyValue(binding.errorLineNumberText);
         bindCopyValue(binding.errorRecordTimeText);
+        bindCopyValue(binding.errorVersionText);
+        bindCopyValue(binding.errorPackageText);
+        /** 点击标签复制"标签 + 值"（如「异常信息：Resource ID #0xffb26a00」） */
+        bindCopyLabel(binding.errorVersionLabel, binding.errorVersionText);
+        bindCopyLabel(binding.errorPackageLabel, binding.errorPackageText);
+        bindCopyLabel(binding.errorInfoLabel, binding.errorInfoText);
+        bindCopyLabel(binding.errorTypeLabel, binding.errorTypeText);
+        bindCopyLabel(binding.errorFileNameLabel, binding.errorFileNameText);
+        bindCopyLabel(binding.errorThrowClassLabel, binding.errorThrowClassText);
+        bindCopyLabel(binding.errorThrowMethodLabel, binding.errorThrowMethodText);
+        bindCopyLabel(binding.errorLineNumberLabel, binding.errorLineNumberText);
+        bindCopyLabel(binding.errorRecordTimeLabel, binding.errorRecordTimeText);
+        /** 堆栈右上角复制按钮：只复制堆栈内容，不含设备信息 */
+        binding.stackCopyButton.setOnClickListener(v -> {
+            FunctionFactoryKt.copyToClipboard(this, appErrorsInfo.stackTrace);
+        });
         binding.errorStackTraceMovableText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace));
         binding.errorStackTraceFixedText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace));
         binding.appPanelScrollView.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
@@ -230,6 +249,16 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         view.setOnClickListener(v -> {
             String value = view.getText() == null ? "" : view.getText().toString();
             if (!value.trim().isEmpty()) FunctionFactoryKt.copyToClipboard(this, value);
+        });
+    }
+
+    /** 点击标签复制"标签 + 值"（格式「标签：值」，标签取自标签 TextView 文本；值非空才响应） */
+    private void bindCopyLabel(android.widget.TextView label, android.widget.TextView valueView) {
+        label.setOnClickListener(v -> {
+            String value = valueView.getText() == null ? "" : valueView.getText().toString();
+            if (value.trim().isEmpty()) return;
+            String labelText = label.getText() == null ? "" : label.getText().toString();
+            FunctionFactoryKt.copyToClipboard(this, labelText + "：" + value);
         });
     }
 
