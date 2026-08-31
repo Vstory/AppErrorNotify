@@ -1,6 +1,8 @@
-# AppErrorsTracking（异常跟踪 · 通知版）
+# AppErrorNotify（异常通知）
 
-> **Android 异常跟踪 LSPosed 模块**：拦截应用崩溃 / ANR，以 **系统通知** 方式展示异常，并记录历史、导出分享、按应用配置。基于 [AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking) 改造，基于现代 **libxposed API 102**。
+> **Android 异常跟踪 LSPosed 模块（通知版）**：拦截应用崩溃 / ANR，以 **系统通知** 方式展示异常，并记录历史、导出分享、按应用配置。基于 [AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking) 改造，基于现代 **libxposed API 102**。
+
+> ⚠️ 本项目为 **AppErrorNotify（异常通知）**，是原 [AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking) 的 Java 改造版，以 **LSPosed API 102** 方式实现。原项目（Kotlin 版）见 [KitsunePie/AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking)。
 
 ## 与原项目的差异
 
