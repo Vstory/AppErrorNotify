@@ -119,10 +119,13 @@ public class AppErrorsInfoBean implements Serializable {
                 LocaleFactoryKt.getLocale().getYearAgo());
     }
 
-    /** 获取异常本地化时间 */
+    /** 获取异常本地化时间（固定格式：2026-08-23,22:22:03） */
     public String getDateTime() {
-        String formatted = SimpleDateFormat.getDateTimeInstance().format(new Date(timestamp));
-        return formatted != null ? formatted : getUtcTime();
+        try {
+            return new SimpleDateFormat("yyyy-MM-dd,HH:mm:ss", Locale.getDefault()).format(new Date(timestamp));
+        } catch (Exception e) {
+            return getUtcTime();
+        }
     }
 
     /** 获取异常堆栈分享模板 */
