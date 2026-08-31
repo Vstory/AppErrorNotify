@@ -29,7 +29,6 @@ import android.util.Log;
 import androidx.core.graphics.drawable.IconCompat;
 
 import com.fankes.apperrors.R;
-import com.fankes.apperrors.bean.AppErrorsDisplayBean;
 import com.fankes.apperrors.bean.AppErrorsInfoBean;
 import com.fankes.apperrors.data.AppErrorsConfigData;
 import com.fankes.apperrors.data.AppErrorsRecordData;
@@ -38,7 +37,6 @@ import com.fankes.apperrors.data.MutedErrorsData;
 import com.fankes.apperrors.data.enums.AppErrorsConfigType;
 import com.fankes.apperrors.locale.LocaleFactoryKt;
 import com.fankes.apperrors.ui.activity.errors.AppErrorsDetailActivity;
-import com.fankes.apperrors.ui.activity.errors.AppErrorsDisplayActivity;
 import com.fankes.apperrors.ui.activity.errors.AppErrorsRecordActivity;
 import com.fankes.apperrors.utils.factory.FunctionFactoryKt;
 import com.fankes.apperrors.utils.tool.ModuleLogger;
@@ -614,7 +612,8 @@ public class FrameworkHooker {
             logInfo("App config template: \"" + d.packageName() + "\" -> " + type.name());
             switch (type) {
                 case DIALOG:
-                    showAppErrorsWithDialog(context, d, appName, errorTitle);
+                    // 旧配置兼容降级：DIALOG → 通知（本模块为纯通知版，绝不弹窗）
+                    sendCrashNotification(context, d, appName, errorTitle);
                     break;
                 case TOAST:
                     FunctionFactoryKt.toast(context, errorTitle);
@@ -631,7 +630,8 @@ public class FrameworkHooker {
                     AppErrorsConfigType global = AppErrorsConfigType.values()[ConfigData.getGlobalShowErrorsType()];
                     switch (global) {
                         case DIALOG:
-                            showAppErrorsWithDialog(context, d, appName, errorTitle);
+                            // 旧全局配置兼容降级：DIALOG → 通知
+                            sendCrashNotification(context, d, appName, errorTitle);
                             break;
                         case TOAST:
                             FunctionFactoryKt.toast(context, errorTitle);
@@ -739,15 +739,6 @@ public class FrameworkHooker {
         } catch (Throwable t) {
             logWarn("Send crash notification failed: " + t);
         }
-    }
-
-    private static void showAppErrorsWithDialog(Context context, AppErrorsProcessData d, String appName, String errorTitle) {
-        boolean isActualApp = d.isActualApp();
-        AppErrorsDisplayActivity.Companion.start(context, new AppErrorsDisplayBean(
-                d.pid(), d.userId(), d.packageName(), d.processName(), appName, errorTitle,
-                isActualApp, isActualApp,
-                isActualApp && (!d.isRepeatingCrash() || ConfigData.isEnableAlwaysShowsReopenAppOptions())
-                        && FunctionFactoryKt.isAppCanOpened(context, d.packageName()) && d.isMainProcess()));
     }
 
     /** Drawable 转 Bitmap（替代 core-ktx toBitmap） */

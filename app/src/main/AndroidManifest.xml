@@ -66,16 +66,6 @@
             android:screenOrientation="behind" />
 
         <activity
-            android:name=".ui.activity.errors.AppErrorsDisplayActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:label="@string/empty_lable"
-            android:launchMode="singleTask"
-            android:screenOrientation="behind"
-            android:taskAffinity=":display"
-            android:theme="@style/Theme.AppErrorsTracking.Translucent" />
-
-        <activity
             android:name=".ui.activity.errors.AppErrorsDetailActivity"
             android:exported="true"
             android:launchMode="singleTask"

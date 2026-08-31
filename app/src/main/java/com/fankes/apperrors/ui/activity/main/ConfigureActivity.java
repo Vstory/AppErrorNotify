@@ -102,7 +102,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                 if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.GLOBAL, bean.packageName))
                     typeText = LocaleFactoryKt.getLocale().getFollowGlobalConfig();
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, bean.packageName))
-                    typeText = LocaleFactoryKt.getLocale().getShowErrorsDialog();
+                    typeText = LocaleFactoryKt.getLocale().getShowErrorsNotify();   // 旧配置降级为通知
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, bean.packageName))
                     typeText = LocaleFactoryKt.getLocale().getShowErrorsNotify();
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, bean.packageName))
@@ -152,7 +152,6 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
             ViewKt.setVisible(cb.configRadio0, isShowGlobalConfig);
             if (!isNotSetDefaultValue) {
                 if (isShowGlobalConfig) cb.configRadio0.setChecked(AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.GLOBAL, packageName));
-                cb.configRadio1.setChecked(AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, packageName));
                 cb.configRadio2.setChecked(AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, packageName));
                 cb.configRadio3.setChecked(AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, packageName));
                 cb.configRadio4.setChecked(AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTHING, packageName));
@@ -160,7 +159,6 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
             builder.confirmButton(() -> {
                 AppErrorsConfigType type;
                 if (cb.configRadio0.isChecked()) type = AppErrorsConfigType.GLOBAL;
-                else if (cb.configRadio1.isChecked()) type = AppErrorsConfigType.DIALOG;
                 else if (cb.configRadio2.isChecked()) type = AppErrorsConfigType.NOTIFY;
                 else if (cb.configRadio3.isChecked()) type = AppErrorsConfigType.TOAST;
                 else if (cb.configRadio4.isChecked()) type = AppErrorsConfigType.NOTHING;

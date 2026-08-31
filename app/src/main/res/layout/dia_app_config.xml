@@ -32,14 +32,6 @@
             app:buttonTint="@color/colorPrimaryAccent" />
 
         <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/config_radio_1"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:singleLine="true"
-            android:text="@string/show_errors_dialog"
-            app:buttonTint="@color/colorPrimaryAccent" />
-
-        <com.google.android.material.radiobutton.MaterialRadioButton
             android:id="@+id/config_radio_2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

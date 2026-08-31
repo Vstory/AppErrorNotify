@@ -94,7 +94,6 @@
     <string name="result_count">%1$s results found</string>
     <string name="loading">Loading</string>
     <string name="when_errors_how_to_show_tip">You can configure how the system will show you errors when the apps crashes.</string>
-    <string name="show_errors_dialog">Show errors dialog</string>
     <string name="show_errors_toast">Show errors Toast</string>
     <string name="show_nothing">Don\'t show anything</string>
     <string name="app_errors_statistics">App Errors Statistics</string>
@@ -152,7 +151,7 @@
     <string name="stack_trace_share_other">Other Requirement</string>
     <string name="share_with_file">Share errors stacktrace with file</string>
     <string name="share_with_file_tip">Share errors stacktrace using files instead of text</string>
-    <string name="module_desc">Added more features to app\'s errors dialog, fixed custom rom deleted dialog, the best experience to Android developer.</string>
+    <string name="module_desc">Capture app crashes / ANR and show them as system notifications, record error history, per-app configurable.</string>
     <string name="about_title">About</string>
     <string name="about_desc">This module is adapted from AppErrorsTracking on LSPosed API 102, with slight differences in details such as using notifications instead of dialogs and an adjusted upload policy.</string>
     <string name="about_link_tip">Tap to open the original project on GitHub</string>

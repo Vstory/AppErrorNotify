@@ -109,7 +109,6 @@ public class ModuleAppLocale {
     public String getPrintToLogcatSuccess() { return str(R.string.print_to_logcat_success); }
     public String getSecondAgo() { return str(R.string.second_ago); }
     public String getShareErrorStack() { return str(R.string.share_error_stack); }
-    public String getShowErrorsDialog() { return str(R.string.show_errors_dialog); }
     public String getShowErrorsNotify() { return str(R.string.show_errors_notify); }
     public String getShowErrorsToast() { return str(R.string.show_errors_toast); }
     public String getShowNothing() { return str(R.string.show_nothing); }
