@@ -153,7 +153,7 @@
     <string name="share_with_file_tip">Share errors stacktrace using files instead of text</string>
     <string name="module_desc">Added more features to app\'s errors dialog, fixed custom rom deleted dialog, the best experience to Android developer.</string>
     <string name="about_title">About</string>
-    <string name="about_desc">This module is a Java rework based on AppErrorsTracking, with slight differences in details such as using notifications instead of dialogs and an adjusted upload policy.</string>
+    <string name="about_desc">This module is adapted from AppErrorsTracking on LSPosed API 102, with slight differences in details such as using notifications instead of dialogs and an adjusted upload policy.</string>
     <string name="about_link_tip">Tap to open the original project on GitHub</string>
     <string name="about_github_url">github.com/KitsunePie/AppErrorsTracking</string>
 </resources>
