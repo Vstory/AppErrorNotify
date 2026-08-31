@@ -35,7 +35,7 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
             dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
             dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureUnmuteAll());
             dlg.confirmButton(() -> {
-                MutedErrorsData.unmuteAllErrorsApps();
+                MutedErrorsData.requestUnmuteAll(this);   // 广播 → system_server 内存清空
                 refreshData();
             });
             dlg.cancelButton();
@@ -53,7 +53,7 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
                         ? LocaleFactoryKt.getLocale().getMuteIfUnlock()
                         : LocaleFactoryKt.getLocale().getMuteIfRestart());
                 b.unmuteButton.setOnClickListener(v -> {
-                    MutedErrorsData.unmuteErrorsApp(bean);
+                    MutedErrorsData.requestUnmute(this, bean);  // 广播 → system_server 内存取消
                     refreshData();
                 });
             });
@@ -61,15 +61,19 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
         onChanged = () -> ((android.widget.BaseAdapter) binding.listView.getAdapter()).notifyDataSetChanged();
     }
 
-    /** 更新列表数据 */
+    /** 更新列表数据（经广播从 system_server 拉取权威忽略列表） */
     private void refreshData() {
-        List<MutedErrorsAppBean> all = MutedErrorsData.fetchMutedErrorsAppsData();
-        listData.clear();
-        listData.addAll(all);
-        if (onChanged != null) onChanged.run();
-        ViewKt.setVisible(binding.unmuteAllIcon, !listData.isEmpty());
-        ViewKt.setVisible(binding.listView, !listData.isEmpty());
-        ViewKt.setVisible(binding.listNoDataView, listData.isEmpty());
+        MutedErrorsData.fetchFromSystemServer(this, () -> {
+            runOnUiThread(() -> {
+                List<MutedErrorsAppBean> all = MutedErrorsData.fetchMutedErrorsAppsData();
+                listData.clear();
+                listData.addAll(all);
+                if (onChanged != null) onChanged.run();
+                ViewKt.setVisible(binding.unmuteAllIcon, !listData.isEmpty());
+                ViewKt.setVisible(binding.listView, !listData.isEmpty());
+                ViewKt.setVisible(binding.listNoDataView, listData.isEmpty());
+            });
+        });
     }
 
     @Override

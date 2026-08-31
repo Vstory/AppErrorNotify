@@ -96,6 +96,8 @@ public class ModuleAppLocale {
     public String getMomentAgo() { return str(R.string.moment_ago); }
     public String getMonthAgo() { return str(R.string.month_ago); }
     public String getMore() { return str(R.string.more); }
+    public String getNotificationIgnoreApp() { return str(R.string.notification_ignore_app); }
+    public String getNotificationViewInfo() { return str(R.string.notification_view_info); }
     public String getMuteIfRestart() { return str(R.string.mute_if_restart); }
     public String getMuteIfUnlock() { return str(R.string.mute_if_unlock); }
     public String getNoCpuAbi() { return str(R.string.no_cpu_abi); }

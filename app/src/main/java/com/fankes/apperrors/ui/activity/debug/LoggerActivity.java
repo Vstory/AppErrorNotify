@@ -110,8 +110,15 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
         return false;
     }
 
-    /** 更新列表数据 */
+    /** 更新列表数据（先显示本地内存日志，再经广播拉取 system_server 内存日志合并刷新） */
     private void refreshData() {
+        // 1. 本地先渲染（打开即见，不空白）
+        renderData();
+        // 2. 经广播从 system_server 拉取权威日志（system_server 侧只存内存，UI 无法直读）
+        ModuleLogger.fetchFromSystemServer(this, () -> binding.listView.post(this::renderData));
+    }
+
+    private void renderData() {
         listData.clear();
         List<ModuleLogger.LogData> all = ModuleLogger.allData();
         for (int i = all.size() - 1; i >= 0; i--) {

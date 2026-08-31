@@ -3,8 +3,12 @@
  */
 package com.fankes.apperrors.data;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.util.Log;
 
 import com.fankes.apperrors.bean.MutedErrorsAppBean;
@@ -139,6 +143,86 @@ public class MutedErrorsData {
     // ===== 属性访问（Kotlin 属性语法映射） =====
     public static Set<String> getMutedErrorsIfUnlockApps() { return mutedErrorsIfUnlockApps; }
     public static Set<String> getMutedErrorsIfRestartApps() { return mutedErrorsIfRestartApps; }
+
+    // ===== 广播通道（UI ↔ system_server 同步；system_server 侧为内存权威，UI 经广播读写） =====
+
+    /** 广播 action 常量（与 system_server FrameworkHooker receiver 约定） */
+    public static final String ACTION_GET_MUTED = "com.fankes.apperrors.action.GET_MUTED";
+    public static final String ACTION_MUTED_RESULT = "com.fankes.apperrors.action.MUTED_RESULT";
+    public static final String ACTION_MUTE_ERROR = "com.fankes.apperrors.action.MUTE_ERROR";
+    public static final String ACTION_UNMUTE_ERROR = "com.fankes.apperrors.action.UNMUTE_ERROR";
+    public static final String ACTION_UNMUTE_ALL = "com.fankes.apperrors.action.UNMUTE_ALL";
+    public static final String EXTRA_MUTED = "muted";
+    public static final String EXTRA_PACKAGE = "package";
+    public static final String EXTRA_BEAN = "bean";
+
+    /** UI 请求忽略某应用（通知按钮 / 展示页入口 → system_server 内存 Set 生效） */
+    public static void requestMute(Context context, String packageName) {
+        try {
+            context.sendBroadcast(new Intent(ACTION_MUTE_ERROR).putExtra(EXTRA_PACKAGE, packageName));
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** UI 请求取消忽略指定应用 */
+    public static void requestUnmute(Context context, MutedErrorsAppBean bean) {
+        try {
+            context.sendBroadcast(new Intent(ACTION_UNMUTE_ERROR).putExtra(EXTRA_BEAN, bean));
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** UI 请求取消全部忽略 */
+    public static void requestUnmuteAll(Context context) {
+        try {
+            context.sendBroadcast(new Intent(ACTION_UNMUTE_ALL));
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * UI 读取：经广播从 system_server 拉取忽略列表（system_server 侧是内存权威；UI 侧本地 Set 可能不同步）
+     * @param context UI Context
+     * @param callback 收到后的回调（可能在非主线程）
+     */
+    public static void fetchFromSystemServer(final Context context, final Runnable callback) {
+        try {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(ACTION_MUTED_RESULT);
+            final BroadcastReceiver receiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context ctx, Intent intent) {
+                    try {
+                        ctx.unregisterReceiver(this);
+                    } catch (Throwable ignored) {
+                    }
+                    Object extra = intent != null ? intent.getSerializableExtra(EXTRA_MUTED) : null;
+                    if (extra instanceof ArrayList) {
+                        ArrayList<?> raw = (ArrayList<?>) extra;
+                        mutedErrorsIfUnlockApps = new HashSet<>();
+                        mutedErrorsIfRestartApps = new HashSet<>();
+                        for (Object o : raw) {
+                            if (o instanceof MutedErrorsAppBean) {
+                                MutedErrorsAppBean bean = (MutedErrorsAppBean) o;
+                                if (bean.type == MutedErrorsAppBean.MuteType.UNTIL_UNLOCKS)
+                                    mutedErrorsIfUnlockApps.add(bean.packageName);
+                                else
+                                    mutedErrorsIfRestartApps.add(bean.packageName);
+                            }
+                        }
+                    }
+                    if (callback != null) callback.run();
+                }
+            };
+            if (Build.VERSION.SDK_INT >= 33)
+                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            else
+                context.registerReceiver(receiver, filter);
+            context.sendBroadcast(new Intent(ACTION_GET_MUTED));
+        } catch (Throwable t) {
+            if (callback != null) callback.run();
+        }
+    }
 
     private MutedErrorsData() {}
 }

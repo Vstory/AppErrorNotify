@@ -26,7 +26,7 @@ public class ModuleLogger {
     private static final int MAX_LOGS = 200;
 
     /** 日志数据 */
-    public static class LogData {
+    public static class LogData implements java.io.Serializable {
         public String priority;
         public String tag;
         public String msg;
@@ -127,6 +127,53 @@ public class ModuleLogger {
             synchronized (inMemory) { list = new ArrayList<>(inMemory); }
             if (prefs != null) prefs.edit().putString(KEY_LOGS, gson.toJson(list)).apply();
         } catch (Exception ignored) {
+        }
+    }
+
+    /** 广播 action：UI 请求日志 / system_server 回传日志 */
+    public static final String ACTION_GET_LOGS = "com.fankes.apperrors.action.GET_LOGS";
+    public static final String ACTION_LOGS_RESULT = "com.fankes.apperrors.action.LOGS_RESULT";
+    public static final String EXTRA_LOGS = "logs";
+
+    /**
+     * UI 进程读取：经广播从 system_server 拉取模块日志（system_server 侧日志只存内存/RemotePreferences 只读，
+     *  UI 进程无法直读，必须经 system_server 广播回传）
+     * @param context UI Context
+     * @param callback 收到日志后的回调（可能在非主线程）
+     */
+    public static void fetchFromSystemServer(final android.content.Context context,
+                                             final Runnable callback) {
+        try {
+            android.content.IntentFilter filter = new android.content.IntentFilter();
+            filter.addAction(ACTION_LOGS_RESULT);
+            android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                    try {
+                        ctx.unregisterReceiver(this);
+                    } catch (Throwable ignored) {
+                    }
+                    Object extra = intent != null ? intent.getSerializableExtra(EXTRA_LOGS) : null;
+                    if (extra instanceof java.util.ArrayList) {
+                        java.util.ArrayList<?> raw = (java.util.ArrayList<?>) extra;
+                        java.util.ArrayList<LogData> remote = new java.util.ArrayList<>();
+                        for (Object o : raw) if (o instanceof LogData) remote.add((LogData) o);
+                        synchronized (inMemory) {
+                            inMemory.clear();
+                            inMemory.addAll(remote);
+                        }
+                    }
+                    if (callback != null) callback.run();
+                }
+            };
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+            else
+                context.registerReceiver(receiver, filter);
+            android.content.Intent request = new android.content.Intent(ACTION_GET_LOGS);
+            context.sendBroadcast(request);
+        } catch (Throwable t) {
+            if (callback != null) callback.run();
         }
     }
 

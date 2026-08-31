@@ -35,6 +35,8 @@
     <string name="confirm">确定</string>
     <string name="cancel">取消</string>
     <string name="more">更多</string>
+    <string name="notification_ignore_app">忽略该应用</string>
+    <string name="notification_view_info">查看信息</string>
     <string name="notice">提示</string>
     <string name="warning">警告</string>
     <string name="are_you_sure_clear_errors">你确定要清空全部异常记录吗？</string>

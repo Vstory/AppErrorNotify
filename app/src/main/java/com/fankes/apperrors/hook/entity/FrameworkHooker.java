@@ -331,9 +331,24 @@ public class FrameworkHooker {
     static final String ACTION_REMOVE_ERROR = "com.fankes.apperrors.action.REMOVE_ERROR";
     static final String EXTRA_ERRORS = "errors";
     static final String EXTRA_BEAN = "bean";
+    /** 日志通道（ModuleLogger 约定，见 ModuleLogger） */
+    static final String ACTION_GET_LOGS = ModuleLogger.ACTION_GET_LOGS;
+    static final String ACTION_LOGS_RESULT = ModuleLogger.ACTION_LOGS_RESULT;
+    static final String EXTRA_LOGS = ModuleLogger.EXTRA_LOGS;
+    /** 忽略通道（MutedErrorsData 约定，见 MutedErrorsData） */
+    static final String ACTION_GET_MUTED = MutedErrorsData.ACTION_GET_MUTED;
+    static final String ACTION_MUTED_RESULT = MutedErrorsData.ACTION_MUTED_RESULT;
+    static final String ACTION_MUTE_ERROR = MutedErrorsData.ACTION_MUTE_ERROR;
+    static final String ACTION_UNMUTE_ERROR = MutedErrorsData.ACTION_UNMUTE_ERROR;
+    static final String ACTION_UNMUTE_ALL = MutedErrorsData.ACTION_UNMUTE_ALL;
+    static final String EXTRA_MUTED = MutedErrorsData.EXTRA_MUTED;
+    static final String EXTRA_PACKAGE = MutedErrorsData.EXTRA_PACKAGE;
 
     /** 广播通道是否已注册（幂等） */
     private static volatile boolean errorChannelRegistered = false;
+
+    /** 通道注册失败重试次数上限 */
+    private static final int ERROR_CHANNEL_RETRY_MAX = 20;
 
     /**
      * 注册异常记录广播通道（UI 进程经广播从 system_server 拉记录/清空/删除；
@@ -366,6 +381,34 @@ public class FrameworkHooker {
                             if (bean instanceof com.fankes.apperrors.bean.AppErrorsInfoBean)
                                 AppErrorsRecordData.remove((com.fankes.apperrors.bean.AppErrorsInfoBean) bean);
                             logInfo("Error channel: removed one record from UI");
+                        } else if (ACTION_GET_LOGS.equals(action)) {
+                            // 调试日志：回传 system_server 内存日志给 UI
+                            Intent result = new Intent(ACTION_LOGS_RESULT);
+                            result.setPackage(BuildConfigWrapper.APPLICATION_ID);
+                            result.putExtra(EXTRA_LOGS, new java.util.ArrayList<>(ModuleLogger.allData()));
+                            ctx.sendBroadcast(result);
+                            logInfo("Log channel: sent " + ModuleLogger.allData().size() + " logs to UI");
+                        } else if (ACTION_GET_MUTED.equals(action)) {
+                            // 忽略列表：回传 system_server 内存忽略列表给 UI（system_server 是权威）
+                            Intent result = new Intent(ACTION_MUTED_RESULT);
+                            result.setPackage(BuildConfigWrapper.APPLICATION_ID);
+                            result.putExtra(EXTRA_MUTED, MutedErrorsData.fetchMutedErrorsAppsData());
+                            ctx.sendBroadcast(result);
+                            logInfo("Mute channel: sent " + MutedErrorsData.fetchMutedErrorsAppsData().size() + " muted apps to UI");
+                        } else if (ACTION_MUTE_ERROR.equals(action)) {
+                            String pkg = intent.getStringExtra(EXTRA_PACKAGE);
+                            if (pkg != null && !pkg.isEmpty()) {
+                                MutedErrorsData.mutedErrorsIfRestart(pkg);
+                                logInfo("Mute channel: muted \"" + pkg + "\" until restart");
+                            }
+                        } else if (ACTION_UNMUTE_ERROR.equals(action)) {
+                            Object bean = intent.getSerializableExtra(EXTRA_BEAN);
+                            if (bean instanceof com.fankes.apperrors.bean.MutedErrorsAppBean)
+                                MutedErrorsData.unmuteErrorsApp((com.fankes.apperrors.bean.MutedErrorsAppBean) bean);
+                            logInfo("Mute channel: unmuted one app");
+                        } else if (ACTION_UNMUTE_ALL.equals(action)) {
+                            MutedErrorsData.unmuteAllErrorsApps();
+                            logInfo("Mute channel: unmuted all apps");
                         }
                     } catch (Throwable t) {
                         logWarn("Error channel handle failed: " + t);
@@ -376,16 +419,31 @@ public class FrameworkHooker {
             filter.addAction(ACTION_GET_ERRORS);
             filter.addAction(ACTION_CLEAR_ERRORS);
             filter.addAction(ACTION_REMOVE_ERROR);
+            filter.addAction(ACTION_GET_LOGS);
+            filter.addAction(ACTION_GET_MUTED);
+            filter.addAction(ACTION_MUTE_ERROR);
+            filter.addAction(ACTION_UNMUTE_ERROR);
+            filter.addAction(ACTION_UNMUTE_ALL);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             else
                 context.registerReceiver(receiver, filter);
             logInfo("Error channel registered");
+            errorChannelRetry = 0;
         } catch (Throwable t) {
             errorChannelRegistered = false;
             logWarn("Error channel register failed: " + t);
+            // 系统服务未就绪（如 ActivityManager 为 null）→ 延迟重试，保证 UI 拉取通道可用
+            if (context != null && errorChannelRetry < ERROR_CHANNEL_RETRY_MAX) {
+                errorChannelRetry++;
+                final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+                h.postDelayed(() -> registerErrorChannel(context), 3000L);
+            }
         }
     }
+
+    /** 通道注册重试计数 */
+    private static int errorChannelRetry = 0;
 
     /** 注册生命周期广播（替代原 YukiHookAPI onAppLifecycle） */
     private static void registerLifecycle(Context context) {
@@ -596,13 +654,20 @@ public class FrameworkHooker {
             PendingIntent contentPi = PendingIntent.getActivity(context, 0, listIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            // action 按钮「查看详情」：跳转 AppErrorsDetailActivity 带具体崩溃信息
+            // action 按钮「查看信息」：跳转 AppErrorsDetailActivity 带具体崩溃信息
             Intent detailIntent = new Intent();
             detailIntent.setComponent(new ComponentName(BuildConfigWrapper.APPLICATION_ID,
                     AppErrorsDetailActivity.class.getName()));
             detailIntent.putExtra("app_errors_info_extra", bean);
             detailIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             PendingIntent detailPi = PendingIntent.getActivity(context, 1, detailIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            // action 按钮「忽略该应用」：发广播 → system_server 内存忽略（直到重启），与忽略列表闭环
+            // ⚠️ 不能 setPackage()：广播要能被 system_server 进程的动态 receiver 收到（同 Error channel 约定）
+            Intent muteIntent = new Intent(MutedErrorsData.ACTION_MUTE_ERROR);
+            muteIntent.putExtra(MutedErrorsData.EXTRA_PACKAGE, d.packageName());
+            PendingIntent mutePi = PendingIntent.getBroadcast(context, 2, muteIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
             Notification.Builder builder = new Notification.Builder(context, channelId)
@@ -612,7 +677,8 @@ public class FrameworkHooker {
                     .setContentTitle(errorTitle)
                     .setContentText(LocaleFactoryKt.getLocale().getAppErrorsTip())
                     .setContentIntent(contentPi)
-                    .addAction(0, LocaleFactoryKt.getLocale().getMore(), detailPi)
+                    .addAction(0, LocaleFactoryKt.getLocale().getNotificationIgnoreApp(), mutePi)
+                    .addAction(0, LocaleFactoryKt.getLocale().getNotificationViewInfo(), detailPi)
                     .setDefaults(Notification.DEFAULT_ALL);
             // notificationId 用 pid：同一进程反复崩溃覆盖同一条通知，不堆积
             manager.notify(d.pid(), builder.build());
