@@ -4,6 +4,7 @@
 package com.fankes.apperrors.ui.activity.main;
 
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.os.Build;
 
 import androidx.core.content.ContextCompat;
@@ -146,7 +147,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         }
         binding.mainLinStatus.setCardBackgroundColor(bgColor);
         binding.mainImgStatus.setImageResource(active ? R.drawable.ic_success : R.drawable.ic_warn);
-        binding.mainImgStatus.setImageTintList(ContextCompat.getColorStateList(this, statusTextColor));
+        binding.mainImgStatus.setImageTintList(ColorStateList.valueOf(statusTextColor));
         binding.mainTextStatus.setTextColor(statusTextColor);
         binding.mainTextApiWay.setTextColor(statusTextColor);
         binding.mainTextModuleVersion.setTextColor(statusTextColor);
