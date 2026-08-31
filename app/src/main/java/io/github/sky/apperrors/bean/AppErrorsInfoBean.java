@@ -22,6 +22,15 @@ import java.util.Locale;
  */
 public class AppErrorsInfoBean implements Serializable {
 
+    /**
+     * 显式固定 serialVersionUID，跨进程（system_server ↔ module UI）广播传输兼容。
+     * 原因：实现 Serializable 时不声明 serialVersionUID，编译器会因字段/方法改动自动生成不同值；
+     * 一旦代码变更（如方法改签名），自动 UID 漂移 → 跨进程反序列化抛
+     * InvalidClassException（local class incompatible），导致打开异常历史记录界面崩溃。
+     * 固定为首次序列化时的值，保证 system_server 与 UI 进程版本不同也能互通。
+     */
+    private static final long serialVersionUID = -6072706396475104321L;
+
     @SerializedName("pid") public int pid = -1;
     @SerializedName("userId") public int userId = -1;
     @SerializedName("cpuAbi") public String cpuAbi = "";
