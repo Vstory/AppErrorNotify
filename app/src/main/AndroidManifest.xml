@@ -38,6 +38,10 @@
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+
+                <!-- ⚠️ LSPosed 模块识别必需：缺这个 → LSPosed 不把 APK 识别为模块 → 不注入 java_init.list
+                     （InxLocker 等成熟现代模块都带；只带 LAUNCHER 会导致"UI已激活但无任何注入日志"） -->
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
             </intent-filter>
         </activity>
 

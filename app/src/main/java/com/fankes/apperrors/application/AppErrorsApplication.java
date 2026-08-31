@@ -31,7 +31,6 @@ public class AppErrorsApplication extends Application implements XposedServiceHe
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
         /** 装载存储控制类（service 未连接时 fallback 本地） */
         ConfigData.init(this);
-        AppErrorsRecordData.init(this);
         MutedErrorsData.init(this);
         ModuleLogger.init(this);
     }
@@ -39,9 +38,9 @@ public class AppErrorsApplication extends Application implements XposedServiceHe
     @Override
     public void onServiceBind(XposedService service) {
         ModuleServiceHolder.onServiceBind(service);
-        /** 切换到 RemotePreferences（与 system_server 同源） */
+        /** 切换配置到 RemotePreferences（system_server 侧只读，UI 侧可写，用于配置） */
         ConfigData.initService(service);
-        AppErrorsRecordData.initService(service);
+        /** 异常记录：UI 进程经广播从 system_server 拉取（不能直读 /data/misc 文件，权限不足） */
         MutedErrorsData.initService(service);
         ModuleLogger.init(service.getRemotePreferences(ModuleLogger.PREFS_GROUP));
     }
@@ -51,7 +50,6 @@ public class AppErrorsApplication extends Application implements XposedServiceHe
         ModuleServiceHolder.onServiceDied(service);
         /** 回退本地存储 */
         ConfigData.init(this);
-        AppErrorsRecordData.init(this);
         MutedErrorsData.init(this);
         ModuleLogger.init(this);
     }

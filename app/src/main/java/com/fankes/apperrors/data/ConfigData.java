@@ -74,7 +74,10 @@ public class ConfigData {
 
     public static void putStringSet(String key, Set<String> value) {
         SharedPreferences p = current();
-        if (p != null) p.edit().putStringSet(key, value).apply();
+        if (p != null) {
+            try { p.edit().putStringSet(key, value).apply(); }
+            catch (Throwable ignored) { /* system_server 只读 RemotePreferences：忽略 */ }
+        }
     }
 
     public static int getInt(String key, int def) {
@@ -84,7 +87,10 @@ public class ConfigData {
 
     public static void putInt(String key, int value) {
         SharedPreferences p = current();
-        if (p != null) p.edit().putInt(key, value).apply();
+        if (p != null) {
+            try { p.edit().putInt(key, value).apply(); }
+            catch (Throwable ignored) { /* system_server 只读 RemotePreferences：忽略 */ }
+        }
     }
 
     public static boolean getBoolean(String key, boolean def) {
@@ -94,7 +100,10 @@ public class ConfigData {
 
     public static void putBoolean(String key, boolean value) {
         SharedPreferences p = current();
-        if (p != null) p.edit().putBoolean(key, value).apply();
+        if (p != null) {
+            try { p.edit().putBoolean(key, value).apply(); }
+            catch (Throwable ignored) { /* system_server 只读 RemotePreferences：忽略 */ }
+        }
     }
 
     // ===== 属性（UI 与 Host 共用；Kotlin 属性语法可映射） =====

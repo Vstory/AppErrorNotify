@@ -38,10 +38,15 @@ import com.fankes.apperrors.utils.tool.ModuleLogger;
 import com.fankes.apperrors.wrapper.BuildConfigWrapper;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import io.github.libxposed.api.XposedInterface.HookHandle;
+import io.github.libxposed.api.XposedInterface.Hooker;
 
 import io.github.libxposed.api.XposedInterface.Chain;
 import io.github.libxposed.api.XposedModule;
@@ -54,8 +59,20 @@ public class FrameworkHooker {
     /** 模块实例（HookEntry.onSystemServerStarting 注入） */
     private static XposedModule module;
 
+    /** system_server 的 ClassLoader（必须用它加载 com.android.server.* 隐藏类，不能用 Class.forName 默认加载器！） */
+    private static ClassLoader systemServerClassLoader;
+
     /** system_server Context（首次 hook 时从 AppErrors.mContext 取得） */
     private static Context hostContext;
+
+    /** 已注册的 hook 句柄（热重载重装时清空重建） */
+    private static final List<HookHandle> hookHandles = new ArrayList<>();
+
+    /** hook 注册汇总（一次性输出，避免刷屏） */
+    private static final List<String> hookSummary = new ArrayList<>();
+    private static int hookOkCount = 0;
+    private static int hookSkipCount = 0;
+    private static int hookFailCount = 0;
 
     private static void log(int level, Object msg, Throwable e) {
         if (module != null) {
@@ -79,9 +96,28 @@ public class FrameworkHooker {
 
     // ===== Java 标准反射工具 =====
 
-    /** 多候选类 */
+    /** 用 system_server ClassLoader 加载类（Android 16+ 隐藏 API 限制，必须用它，不能 Class.forName 默认加载器） */
     private static Class<?> classOf(String... names) {
         for (String name : names) {
+            // 1. system_server classloader（首次 onSystemServerStarting 保存；热重载从旧 hook executable 反查）
+            if (systemServerClassLoader != null) {
+                try {
+                    return Class.forName(name, false, systemServerClassLoader);
+                } catch (Throwable ignored) {
+                }
+            }
+            // 2. 兜底：boot classpath 的 framework classloader（ActivityThread 在 boot classpath，其加载器可看到 framework 类）
+            try {
+                ClassLoader boot = Class.forName("android.app.ActivityThread").getClassLoader();
+                if (boot != null && boot != FrameworkHooker.class.getClassLoader()) {
+                    try {
+                        return Class.forName(name, false, boot);
+                    } catch (Throwable ignored) {
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+            // 3. 最后兜底：模块默认 classloader
             try {
                 return Class.forName(name);
             } catch (Throwable ignored) {
@@ -212,14 +248,49 @@ public class FrameworkHooker {
     private static Class<?> PackageListClass() { return classOf("com.android.server.am.ProcessRecord$PackageList", "com.android.server.am.PackageList"); }
     private static Class<?> ErrorDialogControllerClass() { return classOf("com.android.server.am.ProcessRecord$ErrorDialogController", "com.android.server.am.ErrorDialogController"); }
 
-    /** 模块 APK 资源（system_server 内加载） */
+    /** 模块 APK 资源（system_server 内加载）
+     *  ⚠️ 不能用 getResourcesForApplication()：在 system_server 里返回的 Resources 资源表不完整，
+     *      getString 抛 Resources$NotFoundException（日志实证）。原版 YukiHookAPI 用 XModuleResources
+     *      （= AssetManager.addAssetPath(模块APK) + new Resources）从模块 APK 路径直接加载。
+     *      api102 没有 XModuleResources，这里用 AssetManager 等价实现。 */
     private static android.content.res.Resources moduleResources() {
         Context context = hostContext;
         if (context == null) return null;
         ApplicationInfo ai = module != null ? module.getModuleApplicationInfo() : null;
         if (ai == null) return null;
         try {
-            return context.getPackageManager().getResourcesForApplication(ai);
+            String apkPath = ai.sourceDir;
+            if (apkPath == null) return null;
+            android.content.res.AssetManager am = context.getResources().getAssets();
+            // 创建一个独立的 AssetManager 并添加模块 APK 路径（等价 XModuleResources.createInstance）
+            try {
+                android.content.res.AssetManager am2 = (android.content.res.AssetManager) android.content.res.AssetManager.class.getConstructor().newInstance();
+                // addAssetPath 是隐藏 API，Android 9+ 反射受限但 system_server 内可访问
+                java.lang.reflect.Method addPath = android.content.res.AssetManager.class.getMethod("addAssetPath", String.class);
+                int cookie = (Integer) addPath.invoke(am2, apkPath);
+                if (cookie == 0) return null;
+                return new android.content.res.Resources(am2, context.getResources().getDisplayMetrics(), context.getResources().getConfiguration());
+            } catch (Throwable t) {
+                // fallback: 老方案（至少尝试）
+                return context.getPackageManager().getResourcesForApplication(ai);
+            }
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** 获取 system_server 的 Context（ActivityThread.mSystemContext，onSystemServerStarting 早期可用）
+     *  用于在 system_server 启动时就初始化文件存储目录（原版在 Application onCreate 初始化） */
+    public static Context getSystemServerContext() {
+        try {
+            Class<?> atClass = Class.forName("android.app.ActivityThread", false, systemServerClassLoader);
+            java.lang.reflect.Method cur = atClass.getDeclaredMethod("currentActivityThread");
+            Object at = cur.invoke(null);
+            if (at == null) return null;
+            java.lang.reflect.Field f = atClass.getDeclaredField("mSystemContext");
+            f.setAccessible(true);
+            Object ctx = f.get(at);
+            return ctx instanceof Context ? (Context) ctx : null;
         } catch (Throwable ignored) {
             return null;
         }
@@ -235,7 +306,78 @@ public class FrameworkHooker {
                 return r != null ? r : context.getResources();
             });
         }
+        // 初始化异常记录存储（system_server 写文件 /data/misc/apperrors_<random>/，与 UI 进程同源）
+        // ensureHostContext 可能由 onSystemServerStarting 后的首次崩溃触发；此处幂等兜底
+        try {
+            AppErrorsRecordData.init(context);
+        } catch (Throwable t) {
+            logError("AppErrorsRecordData.init failed", t);
+        }
         registerLifecycle(context);
+        registerErrorChannel(context);
+    }
+
+    /** 广播通道 action 常量（与 UI 进程 AppErrorsRecordData 约定） */
+    static final String ACTION_GET_ERRORS = "com.fankes.apperrors.action.GET_ERRORS";
+    static final String ACTION_ERRORS_RESULT = "com.fankes.apperrors.action.ERRORS_RESULT";
+    static final String ACTION_CLEAR_ERRORS = "com.fankes.apperrors.action.CLEAR_ERRORS";
+    static final String ACTION_REMOVE_ERROR = "com.fankes.apperrors.action.REMOVE_ERROR";
+    static final String EXTRA_ERRORS = "errors";
+    static final String EXTRA_BEAN = "bean";
+
+    /** 广播通道是否已注册（幂等） */
+    private static volatile boolean errorChannelRegistered = false;
+
+    /**
+     * 注册异常记录广播通道（UI 进程经广播从 system_server 拉记录/清空/删除；
+     *  ⚠️ UI 进程不能直接读 /data/misc/ 文件（SELinux+DAC 权限不足），原版用 dataChannel 广播中转，
+     *     这里用标准系统广播等价实现）
+     *  ⚠️ 必须 RECEIVER_EXPORTED：UI 进程（普通 UID）发的广播要被 system_server 的 receiver 收到，
+     *     NOT_EXPORTED 只能收系统/同 UID 广播（真机实证：UI 转圈拉不到数据）
+     */
+    public static void registerErrorChannel(Context context) {
+        if (errorChannelRegistered) return;
+        errorChannelRegistered = true;
+        try {
+            BroadcastReceiver receiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context ctx, Intent intent) {
+                    if (intent == null) return;
+                    String action = intent.getAction();
+                    try {
+                        if (ACTION_GET_ERRORS.equals(action)) {
+                            Intent result = new Intent(ACTION_ERRORS_RESULT);
+                            result.setPackage(BuildConfigWrapper.APPLICATION_ID); // 只发给模块 UI
+                            result.putExtra(EXTRA_ERRORS, AppErrorsRecordData.allData);
+                            ctx.sendBroadcast(result);
+                            logInfo("Error channel: sent " + AppErrorsRecordData.allData.size() + " records to UI");
+                        } else if (ACTION_CLEAR_ERRORS.equals(action)) {
+                            AppErrorsRecordData.clearAll();
+                            logInfo("Error channel: cleared all records from UI");
+                        } else if (ACTION_REMOVE_ERROR.equals(action)) {
+                            Object bean = intent.getSerializableExtra(EXTRA_BEAN);
+                            if (bean instanceof com.fankes.apperrors.bean.AppErrorsInfoBean)
+                                AppErrorsRecordData.remove((com.fankes.apperrors.bean.AppErrorsInfoBean) bean);
+                            logInfo("Error channel: removed one record from UI");
+                        }
+                    } catch (Throwable t) {
+                        logWarn("Error channel handle failed: " + t);
+                    }
+                }
+            };
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(ACTION_GET_ERRORS);
+            filter.addAction(ACTION_CLEAR_ERRORS);
+            filter.addAction(ACTION_REMOVE_ERROR);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
+            else
+                context.registerReceiver(receiver, filter);
+            logInfo("Error channel registered");
+        } catch (Throwable t) {
+            errorChannelRegistered = false;
+            logWarn("Error channel register failed: " + t);
+        }
     }
 
     /** 注册生命周期广播（替代原 YukiHookAPI onAppLifecycle） */
@@ -459,15 +601,68 @@ public class FrameworkHooker {
     /** 处理 APP 进程异常数据 */
     private static void handleAppErrorsInfo(AppErrorsProcessData d, Context context, ApplicationErrorReport.CrashInfo info) {
         ApplicationInfo appInfo = d.appInfo();
+        if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
+            // 模块自身崩溃：输出完整堆栈（UI 进程崩溃时 system_server 只能看到事件，这里补堆栈）
+            if (info != null) {
+                logError("AppErrorsTracking crashed itself, stackTrace:\n" + info.stackTrace, null);
+            }
+        }
         AppErrorsRecordData.add(AppErrorsInfoBean.clone(context, d.pid(), d.userId(),
                 appInfo != null ? appInfo.packageName : null, info));
         logInfo("Received crash application data" + (d.userId() != 0 ? " --user " + d.userId() : "") + " --pid " + d.pid());
     }
 
-    /** 由 HookEntry 注入模块实例并注册 hook */
-    public static void install(XposedModule module) {
+    /** 由 HookEntry 注入模块实例并注册 hook（热重载重装时也会调用，先清空旧句柄列表） */
+    public static void install(XposedModule module, ClassLoader systemServerClassLoader) {
         FrameworkHooker.module = module;
-        onHook();
+        // 仅在首次（或显式传入）时更新 classloader；热重载传 null 保留已保存值
+        if (systemServerClassLoader != null) {
+            FrameworkHooker.systemServerClassLoader = systemServerClassLoader;
+        }
+        hookHandles.clear();
+        hookSummary.clear();
+        hookOkCount = 0;
+        hookSkipCount = 0;
+        hookFailCount = 0;
+        try {
+            onHook();
+        } catch (Throwable t) {
+            // 防止单个 hook 点异常导致整个注册静默中断（症状：只有 onSystemServerStarting，没有 Hook 注册完成）
+            logError("FrameworkHooker.onHook 整体异常，部分 hook 可能未注册: " + t, t);
+            printHookSummary();
+        }
+    }
+
+    /** 记录一个 hook 注册结果（不立即打印，由 printHookSummary 汇总） */
+    private static void hookExecutable(Executable e, String desc, Hooker hooker) {
+        if (e == null) {
+            hookSummary.add("  [SKIP] " + desc + "（方法/构造器未找到，Android 版本差异，可忽略）");
+            hookSkipCount++;
+            return;
+        }
+        try {
+            HookHandle h = module.hook(e).intercept(hooker);
+            hookHandles.add(h);
+            hookSummary.add("  [OK]   " + desc);
+            hookOkCount++;
+        } catch (Throwable t) {
+            hookSummary.add("  [FAIL] " + desc + "  →  " + t);
+            hookFailCount++;
+        }
+    }
+
+    /** 一次性输出全部 hook 注册结果（避免刷屏） */
+    private static void printHookSummary() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Hook 注册完成：成功 ").append(hookOkCount)
+          .append(" / 跳过 ").append(hookSkipCount)
+          .append(" / 失败 ").append(hookFailCount).append(" 条：");
+        if (hookOkCount + hookSkipCount + hookFailCount > 0) {
+            sb.append("\n");
+            for (String line : hookSummary) sb.append(line).append("\n");
+        }
+        logInfo(sb.toString().trim());
+        hookSummary.clear();
     }
 
     private static void onHook() {
@@ -475,58 +670,49 @@ public class FrameworkHooker {
         Class<?> controllerClazz = ErrorDialogControllerClass();
         if (controllerClazz != null) {
             Method hasCrashDialogs = methodOfParamCount(controllerClazz, "hasCrashDialogs", 0);
-            if (hasCrashDialogs != null)
-                module.hook(hasCrashDialogs).intercept(chain -> true);
+            hookExecutable(hasCrashDialogs, "ErrorDialogController#hasCrashDialogs() -> true", chain -> true);
             Constructor<?> ctor = constructorOfParamCount(controllerClazz, 1);
-            if (ctor != null) {
-                module.hook(ctor).intercept(chain -> {
-                    Object result = chain.proceed();
-                    Object obj = chain.getThisObject();
-                    if (obj != null) setField(obj, "mCrashDialogs", Collections.emptyList());
-                    return result;
-                });
-            }
+            hookExecutable(ctor, "ErrorDialogController.<init>(1) -> 清空 mCrashDialogs", chain -> {
+                Object result = chain.proceed();
+                Object obj = chain.getThisObject();
+                if (obj != null) setField(obj, "mCrashDialogs", Collections.emptyList());
+                return result;
+            });
             Method showCrashDialogs = methodOfParamCount(controllerClazz, "showCrashDialogs", 1);
-            if (showCrashDialogs != null)
-                module.hook(showCrashDialogs).intercept(chain -> null);
+            hookExecutable(showCrashDialogs, "ErrorDialogController#showCrashDialogs(1) -> null", chain -> null);
         }
         /** 干掉原生错误对话框 - API 30 以下 */
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
             Class<?> atmsLocal = ActivityTaskManagerService_LocalServiceClass();
             if (atmsLocal != null) {
                 Method m = methodOf(atmsLocal, "canShowErrorDialogs");
-                if (m != null) module.hook(m).intercept(chain -> false);
+                hookExecutable(m, "ATMS LocalService#canShowErrorDialogs() -> false", chain -> false);
             }
             Class<?> ams = ActivityManagerServiceClass();
             if (ams != null) {
                 Method m = methodOf(ams, "canShowErrorDialogs");
-                if (m != null) module.hook(m).intercept(chain -> false);
+                hookExecutable(m, "AMS#canShowErrorDialogs() -> false", chain -> false);
             }
         }
         /** 干掉原生错误对话框 - 如果上述方法全部失效则直接结束对话框 */
         Method onCreate = methodOf(AppErrorDialogClass(), "onCreate", Bundle.class);
-        if (onCreate != null) {
-            module.hook(onCreate).intercept(chain -> {
-                Object result = chain.proceed();
-                if (chain.getThisObject() instanceof Dialog) ((Dialog) chain.getThisObject()).cancel();
-                return result;
-            });
-        }
+        hookExecutable(onCreate, "AppErrorDialog#onCreate(Bundle) -> cancel", chain -> {
+            Object result = chain.proceed();
+            if (chain.getThisObject() instanceof Dialog) ((Dialog) chain.getThisObject()).cancel();
+            return result;
+        });
         Method onStart = methodOf(AppErrorDialogClass(), "onStart");
-        if (onStart != null) {
-            module.hook(onStart).intercept(chain -> {
-                Object result = chain.proceed();
-                if (chain.getThisObject() instanceof Dialog) ((Dialog) chain.getThisObject()).cancel();
-                return result;
-            });
-        }
+        hookExecutable(onStart, "AppErrorDialog#onStart() -> cancel", chain -> {
+            Object result = chain.proceed();
+            if (chain.getThisObject() instanceof Dialog) ((Dialog) chain.getThisObject()).cancel();
+            return result;
+        });
         /** 注入自定义错误对话框 */
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
             // AOSP 签名（Android 12+ 各版本一致）：handleAppCrashLSPB(ProcessRecord app, String reason,
             //     String shortMsg, String longMsg, String stackTrace, AppErrorDialog.Data data)
             Method m = methodOfParamCount(AppErrorsClass(), "handleAppCrashLSPB", 6);
-            if (m != null) {
-                module.hook(m).intercept(chain -> {
+            hookExecutable(m, "AppErrors#handleAppCrashLSPB(6) -> 自定义崩溃 UI", chain -> {
                     Object result = chain.proceed();
                     /** 如果为用户终止则不展示异常 */
                     Object arg1 = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
@@ -548,11 +734,9 @@ public class FrameworkHooker {
                     handleShowAppErrorUi(new AppErrorsProcessData(thisObj, proc, resultData), context);
                     return result;
                 });
-            }
         } else {
             Method m = methodOf(AppErrorsClass(), "handleShowAppErrorUi", Message.class);
-            if (m != null) {
-                module.hook(m).intercept(chain -> {
+            hookExecutable(m, "AppErrors#handleShowAppErrorUi(Message) -> 自定义崩溃 UI (API<=R)", chain -> {
                     Object result = chain.proceed();
                     /** 当前实例 */
                     Object thisObj = chain.getThisObject();
@@ -569,15 +753,13 @@ public class FrameworkHooker {
                     handleShowAppErrorUi(new AppErrorsProcessData(thisObj, proc, resultData), context);
                     return result;
                 });
-            }
         }
         /** 记录异常数据（ActivityController 路径） */
         // AOSP 签名（Android 12+ 各版本一致）：handleAppCrashInActivityController(ProcessRecord r,
         //     ApplicationErrorReport.CrashInfo crashInfo, String shortMsg, String longMsg,
         //     String stackTrace, long timeMillis, int callingPid, int callingUid)
         Method handleAppCrashInActivityController = methodOfParamCount(AppErrorsClass(), "handleAppCrashInActivityController", 8);
-        if (handleAppCrashInActivityController != null) {
-            module.hook(handleAppCrashInActivityController).intercept(chain -> {
+        hookExecutable(handleAppCrashInActivityController, "AppErrors#handleAppCrashInActivityController(8) -> 记录崩溃数据", chain -> {
                 Object result = chain.proceed();
                 /** 当前实例 */
                 Object thisObj = chain.getThisObject();
@@ -596,7 +778,8 @@ public class FrameworkHooker {
                 handleAppErrorsInfo(new AppErrorsProcessData(thisObj, proc, null), context, crashInfo);
                 return result;
             });
-        }
+        /** 一次性输出全部 hook 注册结果 */
+        printHookSummary();
     }
 
     private FrameworkHooker() {}

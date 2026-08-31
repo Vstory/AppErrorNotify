@@ -119,7 +119,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
             dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
             dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureClearErrors());
             dlg.confirmButton(() -> {
-                AppErrorsRecordData.clearAll();
+                AppErrorsRecordData.requestClearAll(this);
                 refreshData();
                 FunctionFactoryKt.toast(this, LocaleFactoryKt.getLocale().getAllErrorsClearSuccess());
             });
@@ -156,19 +156,26 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                 AppErrorsDetailActivity.Companion.start(this, listData.get(position)));
     }
 
-    /** 更新列表数据 */
+    /** 更新列表数据（经广播从 system_server 拉取，异步回调刷新 UI） */
     private void refreshData() {
-        List<AppErrorsInfoBean> all = AppErrorsRecordData.allData;
-        binding.titleCountText.setText(LocaleFactoryKt.getLocale().recordCount(all.size()));
-        ViewKt.setVisible(binding.listProgressView, false);
-        ViewKt.setVisible(binding.appErrorSisIcon, all.size() >= 5);
-        ViewKt.setVisible(binding.clearAllIcon, !all.isEmpty());
-        ViewKt.setVisible(binding.exportAllIcon, !all.isEmpty());
-        ViewKt.setVisible(binding.listView, !all.isEmpty());
-        ViewKt.setVisible(binding.listNoDataView, all.isEmpty());
-        listData.clear();
-        listData.addAll(all);
-        if (onChanged != null) onChanged.run();
+        AppErrorsRecordData.fetchFromSystemServer(this, new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context ctx, Intent intent) {
+                final List<AppErrorsInfoBean> all = AppErrorsRecordData.allData;
+                runOnUiThread(() -> {
+                    binding.titleCountText.setText(LocaleFactoryKt.getLocale().recordCount(all.size()));
+                    ViewKt.setVisible(binding.listProgressView, false);
+                    ViewKt.setVisible(binding.appErrorSisIcon, all.size() >= 5);
+                    ViewKt.setVisible(binding.clearAllIcon, !all.isEmpty());
+                    ViewKt.setVisible(binding.exportAllIcon, !all.isEmpty());
+                    ViewKt.setVisible(binding.listView, !all.isEmpty());
+                    ViewKt.setVisible(binding.listNoDataView, all.isEmpty());
+                    listData.clear();
+                    listData.addAll(all);
+                    if (onChanged != null) onChanged.run();
+                });
+            }
+        });
     }
 
     /** 打包导出全部 */
@@ -239,7 +246,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                 dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
                 dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureRemoveRecord());
                 dlg.confirmButton(() -> {
-                    AppErrorsRecordData.remove(listData.get(info.position));
+                    AppErrorsRecordData.requestRemove(this, listData.get(info.position));
                     refreshData();
                 });
                 dlg.cancelButton();

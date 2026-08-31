@@ -8,7 +8,6 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import com.fankes.apperrors.bean.MutedErrorsAppBean;
-import com.fankes.apperrors.hook.HookEntry;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -38,26 +37,29 @@ public class MutedErrorsData {
     private static Set<String> mutedErrorsIfRestartApps = new HashSet<>();
 
     private static void log(String msg) {
-        if (HookEntry.isReady()) HookEntry.getInstance().log(Log.INFO, HookEntry.TAG, msg, null);
+        // ⚠️ 不能用 HookEntry.log()：HookEntry 只在 system_server 注入时存在，
+        //    UI 进程加载 HookEntry 类会 NoClassDefFoundError → 模块自身崩溃
+        android.util.Log.i("AppErrorsTracking", msg != null ? msg : "");
     }
 
-    /** system_server 初始化（RemotePreferences） */
+    /** system_server 初始化（内存模式——原版就只存 system_server 内存，不持久化！
+     *  ⚠️ 不能用 RemotePreferences 写：system_server 里 getRemotePreferences() 返回只读实现
+     *      （LSPosedRemotePreferences.edit() 抛 UnsupportedOperationException）
+     *      原版 YukiHookAPI 的 mutedErrorsIfUnlockApps 就是纯内存 Set，解锁/重启后自动清空） */
     public static void init(SharedPreferences prefs) {
-        MutedErrorsData.prefs = prefs;
-        mutedErrorsIfUnlockApps = new HashSet<>(prefs != null && prefs.getStringSet(KEY_UNTIL_UNLOCK, null) != null
-                ? prefs.getStringSet(KEY_UNTIL_UNLOCK, null) : new HashSet<String>());
-        mutedErrorsIfRestartApps = new HashSet<>(prefs != null && prefs.getStringSet(KEY_UNTIL_RESTART, null) != null
-                ? prefs.getStringSet(KEY_UNTIL_RESTART, null) : new HashSet<String>());
+        MutedErrorsData.prefs = null;   // 内存模式：不持有 prefs，persist* 变为 no-op
+        mutedErrorsIfUnlockApps = new HashSet<>();
+        mutedErrorsIfRestartApps = new HashSet<>();
     }
 
-    /** 模块 UI 初始化（本地 fallback） */
+    /** 模块 UI 初始化（本地 fallback，可写） */
     public static void init(Context context) {
         prefs = context.getSharedPreferences(LOCAL_PREFS_NAME, Context.MODE_PRIVATE);
         mutedErrorsIfUnlockApps = new HashSet<>(prefs.getStringSet(KEY_UNTIL_UNLOCK, new HashSet<String>()));
         mutedErrorsIfRestartApps = new HashSet<>(prefs.getStringSet(KEY_UNTIL_RESTART, new HashSet<String>()));
     }
 
-    /** 模块 UI 连接 XposedService 后切换到远程存储 */
+    /** 模块 UI 连接 XposedService 后切换到远程存储（UI 进程的 RemotePreferences 可写） */
     public static void initService(io.github.libxposed.service.XposedService service) {
         prefs = service.getRemotePreferences(PREFS_GROUP);
         mutedErrorsIfUnlockApps = new HashSet<>(prefs.getStringSet(KEY_UNTIL_UNLOCK, new HashSet<String>()));
@@ -65,10 +67,16 @@ public class MutedErrorsData {
     }
 
     private static void persistUnlock() {
-        if (prefs != null) prefs.edit().putStringSet(KEY_UNTIL_UNLOCK, mutedErrorsIfUnlockApps).apply();
+        if (prefs != null) {
+            try { prefs.edit().putStringSet(KEY_UNTIL_UNLOCK, mutedErrorsIfUnlockApps).apply(); }
+            catch (Throwable ignored) { /* system_server 内存模式：忽略 */ }
+        }
     }
     private static void persistRestart() {
-        if (prefs != null) prefs.edit().putStringSet(KEY_UNTIL_RESTART, mutedErrorsIfRestartApps).apply();
+        if (prefs != null) {
+            try { prefs.edit().putStringSet(KEY_UNTIL_RESTART, mutedErrorsIfRestartApps).apply(); }
+            catch (Throwable ignored) { /* system_server 内存模式：忽略 */ }
+        }
     }
 
     /** 忽略直到解锁 */
