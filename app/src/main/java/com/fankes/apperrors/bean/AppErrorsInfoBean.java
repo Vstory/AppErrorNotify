@@ -94,7 +94,16 @@ public class AppErrorsInfoBean implements Serializable {
 
     /** 获取生成的 Json 文件名 */
     public String getJsonFileName() {
-        return packageName + "_" + pid + "_" + timestamp + ".json";
+        return getFileNameTime() + "_" + packageName + ".json";
+    }
+
+    /** 文件名时间：yyyy-MM-dd_HH-mm-ss-SSS（本地时区，与系统日期时间一致），日期与时间用下划线分隔，时间内部用连字符，兼容文件名 */
+    private String getFileNameTime() {
+        try {
+            return new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", java.util.Locale.getDefault()).format(new java.util.Date(timestamp));
+        } catch (Exception e) {
+            return String.valueOf(timestamp);
+        }
     }
 
     /** 获取 APP 版本信息与版本号 */
