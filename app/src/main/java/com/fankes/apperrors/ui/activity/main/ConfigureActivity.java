@@ -102,7 +102,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                 if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.GLOBAL, bean.packageName))
                     typeText = LocaleFactoryKt.getLocale().getFollowGlobalConfig();
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, bean.packageName))
-                    typeText = LocaleFactoryKt.getLocale().getShowErrorsNotify();   // 旧配置降级为通知
+                    typeText = LocaleFactoryKt.getLocale().getFollowGlobalConfig();   // 旧配置迁移后按跟随全局显示
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, bean.packageName))
                     typeText = LocaleFactoryKt.getLocale().getShowErrorsNotify();
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, bean.packageName))

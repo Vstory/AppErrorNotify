@@ -611,10 +611,6 @@ public class FrameworkHooker {
             AppErrorsConfigType type = resolveAppShowType(d.packageName());
             logInfo("App config template: \"" + d.packageName() + "\" -> " + type.name());
             switch (type) {
-                case DIALOG:
-                    // 旧配置兼容降级：DIALOG → 通知（本模块为纯通知版，绝不弹窗）
-                    sendCrashNotification(context, d, appName, errorTitle);
-                    break;
                 case TOAST:
                     FunctionFactoryKt.toast(context, errorTitle);
                     break;
@@ -656,9 +652,8 @@ public class FrameworkHooker {
         }
     }
 
-    /** 解析应用配置模板中该应用的显示类型（未配置 → GLOBAL 跟随全局） */
+    /** 解析应用配置模板中该应用的显示类型（未配置 → GLOBAL 跟随全局；旧 DIALOG 配置 v1.9(42) 起废弃，同样按 GLOBAL 处理） */
     private static AppErrorsConfigType resolveAppShowType(String packageName) {
-        if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, packageName)) return AppErrorsConfigType.DIALOG;
         if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, packageName)) return AppErrorsConfigType.NOTIFY;
         if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, packageName)) return AppErrorsConfigType.TOAST;
         if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTHING, packageName)) return AppErrorsConfigType.NOTHING;

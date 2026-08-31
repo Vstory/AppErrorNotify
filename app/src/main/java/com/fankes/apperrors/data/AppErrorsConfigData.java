@@ -40,6 +40,26 @@ public class AppErrorsConfigData {
     }
 
     /**
+     * 一次性迁移：旧"显示错误对话框"配置 → 跟随全局。
+     * 本模块 v1.9(42) 起为纯通知版，DIALOG 能力已移除；
+     * 升级后首次打开模块 UI（service 连接成功、RemotePreferences 可写）时调用，
+     * 清空废弃的 showDialogApps → 旧配置自动变为未配置（GLOBAL 跟随全局）。
+     * 幂等：set 为空时直接跳过。
+     * ⚠️ 必须在 UI 进程调用（system_server 侧 RemotePreferences 只读，写无效）
+     */
+    public static void migrateDialogConfigToGlobalIfNeeded() {
+        refresh();
+        if (!showDialogApps.isEmpty()) {
+            showDialogApps.clear();
+            saveAllData();
+        }
+        // 全局显示类型若仍为废弃的 DIALOG → 重置为通知（纯通知版默认）
+        if (ConfigData.getGlobalShowErrorsType() == AppErrorsConfigType.DIALOG.ordinal()) {
+            ConfigData.setGlobalShowErrorsType(AppErrorsConfigType.NOTIFY.ordinal());
+        }
+    }
+
+    /**
      * 获取当前 APP 显示错误的类型是否为 [type]
      * @param type 当前类型
      * @param packageName 当前 APP 包名 - 不填为全局配置

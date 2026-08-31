@@ -7,6 +7,7 @@ import android.app.Application;
 
 import androidx.appcompat.app.AppCompatDelegate;
 
+import com.fankes.apperrors.data.AppErrorsConfigData;
 import com.fankes.apperrors.data.AppErrorsRecordData;
 import com.fankes.apperrors.data.ConfigData;
 import com.fankes.apperrors.data.MutedErrorsData;
@@ -40,6 +41,9 @@ public class AppErrorsApplication extends Application implements XposedServiceHe
         ModuleServiceHolder.onServiceBind(service);
         /** 切换配置到 RemotePreferences（system_server 侧只读，UI 侧可写，用于配置） */
         ConfigData.initService(service);
+        /** 一次性迁移：旧"对话框"配置 → 跟随全局（纯通知版废弃 DIALOG；迁移后广播通知 system_server 刷新） */
+        AppErrorsConfigData.migrateDialogConfigToGlobalIfNeeded();
+        AppErrorsConfigData.notifyConfigChanged(getApplicationContext());
         /** 异常记录：UI 进程经广播从 system_server 拉取（不能直读 /data/misc 文件，权限不足） */
         MutedErrorsData.initService(service);
         ModuleLogger.init(service.getRemotePreferences(ModuleLogger.PREFS_GROUP));
