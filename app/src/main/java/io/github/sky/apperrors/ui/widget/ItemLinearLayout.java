@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - 列表项圆角布局 (Java 化)
- */
+
 package io.github.sky.apperrors.ui.widget;
 
 import android.content.Context;
@@ -12,7 +10,7 @@ import io.github.sky.apperrors.utils.factory.FunctionFactoryKt;
 
 import top.defaults.drawabletoolbox.DrawableBuilder;
 
-/** 列表项圆角布局 */
+
 public class ItemLinearLayout extends LinearLayout {
 
     public ItemLinearLayout(Context context, AttributeSet attrs) {

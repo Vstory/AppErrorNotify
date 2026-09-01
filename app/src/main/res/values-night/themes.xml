@@ -1,28 +1,28 @@
 <resources>
-    <!-- Base application theme (night). -->
+    
     <style name="Theme.AppErrorsTracking" parent="Theme.Material3.DayNight">
-        <!-- Primary brand color. -->
+        
         <item name="colorPrimary">@color/colorPrimaryAccent</item>
         <item name="colorPrimaryVariant">@color/colorPrimaryAccent</item>
         <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
+        
         <item name="colorSecondary">@color/colorPrimaryAccent</item>
         <item name="colorSecondaryVariant">@color/colorPrimaryAccent</item>
         <item name="colorOnSecondary">@color/white</item>
-        <!-- 禁用系统默认 action bar（用自定义 Toolbar/CollapsingToolbarLayout，避免已设 window action bar 冲突） -->
+        
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <!-- Status bar color. -->
+        
         <item name="android:statusBarColor">@color/colorThemeBackground</item>
         <item name="android:windowLightStatusBar">false</item>
-        <!-- Material3 容器色（激活卡深绿/深灰卡等），与 values/color.xml 的 night 值一致 -->
+        
         <item name="colorPrimaryContainer">@color/statusActive</item>
         <item name="colorOnPrimaryContainer">@color/statusActiveText</item>
         <item name="colorSurface">@color/cardBackground</item>
         <item name="colorOnSurface">@color/colorTextGray</item>
     </style>
 
-    <!-- MaterialCardView 统一圆角（对齐 LSPosed 概览页，深色下与亮色同构） -->
+    
     <style name="Widget.AppErrors.Card" parent="">
         <item name="cardCornerRadius">20dp</item>
         <item name="cardElevation">0dp</item>
@@ -30,7 +30,7 @@
         <item name="strokeWidth">0dp</item>
     </style>
 
-    <!-- LSPosed 概览页信息卡 label 样式 -->
+    
     <style name="DeviceInfoLabel">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -40,7 +40,7 @@
         <item name="android:layout_marginTop">12dp</item>
     </style>
 
-    <!-- LSPosed 概览页信息卡 value 样式 -->
+    
     <style name="DeviceInfoValue">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

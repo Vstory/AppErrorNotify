@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - 已忽略异常列表 Activity (Java 化)
- */
+
 package io.github.sky.apperrors.ui.activity.errors;
 
 import androidx.core.view.ViewKt;
@@ -18,13 +16,13 @@ import io.github.sky.apperrors.utils.factory.FunctionFactoryKt;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 已忽略异常列表 Activity */
+
 public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedBinding> {
 
-    /** 回调适配器改变 */
+    
     private Runnable onChanged;
 
-    /** 全部的已忽略异常的 APP 信息 */
+    
     private final List<MutedErrorsAppBean> listData = new ArrayList<>();
 
     @Override
@@ -35,13 +33,13 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
             dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
             dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureUnmuteAll());
             dlg.confirmButton(() -> {
-                MutedErrorsData.requestUnmuteAll(this);   // 广播 → system_server 内存清空
+                MutedErrorsData.requestUnmuteAll(this);   
                 refreshData();
             });
             dlg.cancelButton();
             dlg.show();
         });
-        /** 设置列表元素和 Adapter */
+        
         BaseAdapterFactoryKt.bindAdapter(binding.listView, creater -> {
             creater.onBindDatas(() -> listData);
             creater.onBindViews(AdapterAppErrorsMutedBinding.class, (b, position) -> {
@@ -53,7 +51,7 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
                         ? LocaleFactoryKt.getLocale().getMuteIfUnlock()
                         : LocaleFactoryKt.getLocale().getMuteIfRestart());
                 b.unmuteButton.setOnClickListener(v -> {
-                    MutedErrorsData.requestUnmute(this, bean);  // 广播 → system_server 内存取消
+                    MutedErrorsData.requestUnmute(this, bean);  
                     refreshData();
                 });
             });
@@ -61,7 +59,7 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
         onChanged = () -> ((android.widget.BaseAdapter) binding.listView.getAdapter()).notifyDataSetChanged();
     }
 
-    /** 更新列表数据（经广播从 system_server 拉取权威忽略列表） */
+    
     private void refreshData() {
         MutedErrorsData.fetchFromSystemServer(this, () -> {
             runOnUiThread(() -> {

@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - 异常详情 Activity (Java 化)
- */
+
 package io.github.sky.apperrors.ui.activity.errors;
 
 import android.annotation.SuppressLint;
@@ -38,16 +36,16 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.OutputStream;
 
-/** 异常详情 Activity */
+
 public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetailBinding> {
 
-    /** 请求保存文件回调标识 */
+    
     private static final int WRITE_REQUEST_CODE = 0;
 
-    /** AppErrorsInfoBean 传值 */
+    
     private static final String EXTRA_APP_ERRORS_INFO = "app_errors_info_extra";
 
-    /** 启动 AppErrorsDetailActivity */
+    
     public static final Companion Companion = new Companion();
 
     public static class Companion {
@@ -59,7 +57,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         }
     }
 
-    /** 预导出的异常堆栈 */
+    
     private String stackTrace = "";
 
     @Override
@@ -83,7 +81,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         resetScrollView();
     }
 
-    /** 从 Intent 中解析 AppErrorsInfoBean 并加载至界面 */
+    
     private boolean initUi(Intent intent) {
         AppErrorsInfoBean parsedInfo = null;
         try {
@@ -187,10 +185,10 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         binding.errorThrowMethodText.setText(appErrorsInfo.throwMethodName);
         binding.errorLineNumberText.setText(String.valueOf(appErrorsInfo.throwLineNumber));
         binding.errorRecordTimeText.setText(appErrorsInfo.getDateTime());
-        /** 信息卡顶部新增：崩溃应用包名 + 版本名(版本码) */
+        
         binding.errorVersionText.setText(appErrorsInfo.getVersionBrand());
         binding.errorPackageText.setText(appErrorsInfo.packageName);
-        /** 点击字段值复制到剪贴板（只复制值，不含标签） */
+        
         bindCopyValue(binding.errorInfoText);
         bindCopyValue(binding.errorTypeText);
         bindCopyValue(binding.errorFileNameText);
@@ -200,7 +198,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         bindCopyValue(binding.errorRecordTimeText);
         bindCopyValue(binding.errorVersionText);
         bindCopyValue(binding.errorPackageText);
-        /** 点击标签复制"标签 + 值"（如「异常信息：Resource ID #0xffb26a00」） */
+        
         bindCopyLabel(binding.errorVersionLabel, binding.errorVersionText);
         bindCopyLabel(binding.errorPackageLabel, binding.errorPackageText);
         bindCopyLabel(binding.errorInfoLabel, binding.errorInfoText);
@@ -210,7 +208,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         bindCopyLabel(binding.errorThrowMethodLabel, binding.errorThrowMethodText);
         bindCopyLabel(binding.errorLineNumberLabel, binding.errorLineNumberText);
         bindCopyLabel(binding.errorRecordTimeLabel, binding.errorRecordTimeText);
-        /** 堆栈右上角复制按钮：只复制堆栈内容，不含设备信息 */
+        
         binding.stackCopyButton.setOnClickListener(v -> {
             FunctionFactoryKt.copyToClipboard(this, appErrorsInfo.stackTrace);
         });
@@ -227,10 +225,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         return true;
     }
 
-    /**
-     * 堆栈着色（借鉴 LSPosed 日志界面风格）：首行异常信息红色加粗，其余堆栈帧跟随主题灰。
-     * 支持 JVM 异常与 native crash 两种格式（首行为摘要行，native 的摘要含信号信息）。
-     */
+    
     private CharSequence buildStyledStackTrace(String stackTrace) {
         if (stackTrace == null || stackTrace.isEmpty()) return "";
         SpannableString spannable = new SpannableString(stackTrace);
@@ -244,7 +239,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         return spannable;
     }
 
-    /** 点击字段值复制到剪贴板（只复制值，不含标签；空值不响应） */
+    
     private void bindCopyValue(android.widget.TextView view) {
         view.setOnClickListener(v -> {
             String value = view.getText() == null ? "" : view.getText().toString();
@@ -252,7 +247,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         });
     }
 
-    /** 点击标签复制"标签 + 值"（格式「标签：值」，标签取自标签 TextView 文本；值非空才响应） */
+    
     private void bindCopyLabel(android.widget.TextView label, android.widget.TextView valueView) {
         label.setOnClickListener(v -> {
             String value = valueView.getText() == null ? "" : valueView.getText().toString();
@@ -262,7 +257,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         });
     }
 
-    /** 修复在一些小屏设备上设置了 setTextIsSelectable 后布局自动上滑问题 */
+    
     private void resetScrollView() {
         binding.rootView.post(() -> {
             binding.appPanelScrollView.scrollTo(0, 0);

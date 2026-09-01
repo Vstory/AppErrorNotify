@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - 日志查看 Activity (Java 化)
- */
+
 package io.github.sky.apperrors.ui.activity.debug;
 
 import android.app.Activity;
@@ -30,21 +28,21 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-/** 日志查看 Activity */
+
 public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
 
-    /** 请求保存文件回调标识 */
+    
     private static final int WRITE_REQUEST_CODE = 0;
 
-    /** 回调适配器改变 */
+    
     private Runnable onChanged;
 
-    /** 过滤条件 */
+    
     private final List<String> filters = new ArrayList<String>() {{
         add("D"); add("I"); add("W"); add("E");
     }};
 
-    /** 全部的调试日志数据 */
+    
     private final List<ModuleLogger.LogData> listData = new ArrayList<>();
 
     @Override
@@ -81,7 +79,7 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
                 FunctionFactoryKt.toast(this, "Start Android SAF failed");
             }
         });
-        /** 设置列表元素和 Adapter */
+        
         BaseAdapterFactoryKt.bindAdapter(binding.listView, creater -> {
             creater.onBindDatas(() -> listData);
             creater.onBindViews(AdapterLoggerBinding.class, (b, position) -> {
@@ -110,11 +108,11 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
         return false;
     }
 
-    /** 更新列表数据（先显示本地内存日志，再经广播拉取 system_server 内存日志合并刷新） */
+    
     private void refreshData() {
-        // 1. 本地先渲染（打开即见，不空白）
+        
         renderData();
-        // 2. 经广播从 system_server 拉取权威日志（system_server 侧只存内存，UI 无法直读）
+        
         ModuleLogger.fetchFromSystemServer(this, () -> binding.listView.post(this::renderData));
     }
 
@@ -133,17 +131,17 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
         binding.listNoDataView.setText(filters.size() < 4 ? LocaleFactoryKt.getLocale().getNoListResult() : LocaleFactoryKt.getLocale().getNoListData());
     }
 
-    /** 格式化为本地时间格式 */
+    
     private String formatTime(long timestamp) {
         return SimpleDateFormat.getDateTimeInstance().format(new Date(timestamp));
     }
 
-    /** 格式化消息字符串样式 */
+    
     private String formatMsg(String msg) {
         return msg != null ? msg.replace("--", "\n--") : "";
     }
 
-    /** 获取完整的异常堆栈内容 */
+    
     private String toStackTrace(Throwable t) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         t.printStackTrace(new PrintStream(baos));

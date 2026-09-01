@@ -1,7 +1,4 @@
-/*
- * AppErrorsTracking - 通用函数工厂 (Java 化, 保持 FunctionFactoryKt 类名兼容 Kotlin 调用)
- * 原 Kotlin 顶层扩展函数 → Java 静态方法, receiver 变第一参数
- */
+
 package io.github.sky.apperrors.utils.factory;
 
 import android.app.Activity;
@@ -55,51 +52,51 @@ import java.util.Random;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function1;
 
-/** 通用函数工厂（原 FunctionFactory.kt 顶层函数/属性） */
+
 public class FunctionFactoryKt {
 
     private FunctionFactoryKt() {}
 
-    /** 当前系统环境是否为简体中文 */
+    
     public static boolean isSystemLanguageSimplifiedChinese() {
         Locale locale = Locale.getDefault();
         return locale.getLanguage().equals("zh") && locale.getCountry().equals("CN");
     }
 
-    /** 系统深色模式是否开启 */
+    
     public static boolean isSystemInDarkMode(Context context) {
         return (context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES;
     }
 
-    /** 系统深色模式是否没开启 */
+    
     public static boolean isNotSystemInDarkMode(Context context) {
         return !isSystemInDarkMode(context);
     }
 
-    /** dp 转换为 pxInt */
+    
     public static int dp(Number n, Context context) {
         return dpFloat(n, context).intValue();
     }
 
-    /** dp 转换为 pxFloat */
+    
     public static Float dpFloat(Number n, Context context) {
         return n.floatValue() * context.getResources().getDisplayMetrics().density;
     }
 
-    /** 获取 Drawable */
+    
     public static Drawable drawableOf(Resources res, @DrawableRes int resId) {
         Drawable d = ResourcesCompat.getDrawable(res, resId, null);
         if (d == null) throw new IllegalStateException("Invalid resources");
         return d;
     }
 
-    /** 获取颜色 */
+    
     public static int colorOf(Resources res, @ColorRes int resId) {
         return ResourcesCompat.getColor(res, resId, null);
     }
 
-    /** 得到 APP 安装包信息 (兼容) */
+    
     private static PackageInfo getPackageInfoCompat(Context context, String packageName) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
@@ -111,12 +108,12 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 得到 APP 版本号 (兼容) */
+    
     private static long versionCodeCompat(PackageInfo info) {
         return PackageInfoCompat.getLongVersionCode(info);
     }
 
-    /** 获取系统中全部已安装应用列表 */
+    
     public static List<PackageInfo> listOfPackages(Context context) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
@@ -128,7 +125,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 得到 APP 名称 */
+    
     public static String appNameOf(Context context, String packageName) {
         PackageInfo info = getPackageInfoCompat(context, packageName);
         if (info == null || info.applicationInfo == null) return "";
@@ -136,37 +133,37 @@ public class FunctionFactoryKt {
         return label != null ? label.toString() : "";
     }
 
-    /** 得到 APP 版本信息与版本号 */
+    
     public static String appVersionBrandOf(Context context, String packageName) {
         String name = appVersionNameOf(context, packageName);
         return !isBlank(name) ? name + "(" + appVersionCodeOf(context, packageName) + ")" : "";
     }
 
-    /** 得到 APP 版本名称 */
+    
     public static String appVersionNameOf(Context context, String packageName) {
         PackageInfo info = getPackageInfoCompat(context, packageName);
         return info != null && info.versionName != null ? info.versionName : "";
     }
 
-    /** 得到 APP 版本号 */
+    
     public static long appVersionCodeOf(Context context, String packageName) {
         PackageInfo info = getPackageInfoCompat(context, packageName);
         return info != null ? versionCodeCompat(info) : -1L;
     }
 
-    /** 得到 APP 目标 SDK 版本 */
+    
     public static int appTargetSdkOf(Context context, String packageName) {
         PackageInfo info = getPackageInfoCompat(context, packageName);
         return info != null && info.applicationInfo != null ? info.applicationInfo.targetSdkVersion : -1;
     }
 
-    /** 得到 APP 最低 SDK 版本 */
+    
     public static int appMinSdkOf(Context context, String packageName) {
         PackageInfo info = getPackageInfoCompat(context, packageName);
         return info != null && info.applicationInfo != null ? info.applicationInfo.minSdkVersion : -1;
     }
 
-    /** 获取 APP CPU ABI 名称 */
+    
     public static String appCpuAbiOf(Context context, String packageName) {
         try {
             PackageInfo info = getPackageInfoCompat(context, packageName);
@@ -180,7 +177,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 得到 APP 图标 */
+    
     public static Drawable appIconOf(Context context, String packageName) {
         PackageInfo info = getPackageInfoCompat(context, packageName);
         if (info != null && info.applicationInfo != null) {
@@ -190,7 +187,7 @@ public class FunctionFactoryKt {
         return drawableOf(context.getResources(), R.drawable.ic_android);
     }
 
-    /** 获取 Serializable (兼容) */
+    
     public static <T extends Serializable> T getSerializableExtraCompat(Intent intent, String key) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             try {
@@ -206,12 +203,12 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** List<T> 转换为 ArrayList<T> */
+    
     public static <T> ArrayList<T> toArrayList(List<T> list) {
         return new ArrayList<>(list);
     }
 
-    /** 计算与当前时间戳相差的友好时间 */
+    
     public static String difference(long timestamp, String now, String second, String minute, String hour, String day, String month, String year) {
         long diff = (System.currentTimeMillis() - timestamp) / 1000;
         if (diff >= 0 && diff <= 10) return now;
@@ -227,7 +224,7 @@ public class FunctionFactoryKt {
         return diff / 31104000 + " " + year;
     }
 
-    /** 保留小数 */
+    
     public static String decimal(Number n, int count) {
         try {
             String pattern;
@@ -251,21 +248,17 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** Long 转换为 UTC 时间 */
+    
     public static String toUtcTime(long timestamp) {
         return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.ROOT).format(new Date(timestamp));
     }
 
-    /**
-     * Long 转换为文件名安全时间（本地时区，无冒号，兼容文件系统）
-     * 格式：yyyy-MM-dd_HH-mm-ss-SSS（如 2026-09-01_05-56-36-123）
-     * 用于导出/分享的文件名，避免 toUtcTime 的冒号导致命名冲突。
-     */
+    
     public static String toFileNameTime(long timestamp) {
         return new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.getDefault()).format(new Date(timestamp));
     }
 
-    /** 弹出 Toast */
+    
     public static void toast(Context context, String msg) {
         try {
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show();
@@ -274,7 +267,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 弹出 Snackbar */
+    
     public static void snake(Context context, String msg, String actionText, Runnable callback) {
         try {
             Snackbar snackbar = Snackbar.make(((Activity) context).findViewById(android.R.id.content), msg, Snackbar.LENGTH_LONG);
@@ -287,7 +280,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 推送通知 */
+    
     public static void pushNotify(Context context, String channelId, String channelName, String title, String content,
                                   IconCompat icon, int color, Intent intent) {
         try {
@@ -309,7 +302,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 跳转到指定页面 */
+    
     public static <T extends Activity> void navigate(Context context, Class<T> clazz, boolean isOutSide, Function1<Intent, Unit> initiate) {
         try {
             Intent intent = isOutSide ? new Intent() : new Intent(context instanceof Service ? context.getApplicationContext() : context, clazz);
@@ -322,7 +315,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 复制到剪贴板 */
+    
     public static void copyToClipboard(Context context, String content) {
         try {
             ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -337,7 +330,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 跳转 APP 自身设置界面 */
+    
     public static void openSelfSetting(Context context, String packageName) {
         try {
             Intent intent = new Intent();
@@ -350,7 +343,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 启动系统浏览器 */
+    
     public static void openBrowser(Context context, String url, String packageName) {
         try {
             Intent intent = new Intent();
@@ -365,7 +358,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 当前 APP 是否可被启动 */
+    
     public static boolean isAppCanOpened(Context context, String packageName) {
         try {
             return context.getPackageManager().getLaunchIntentForPackage(packageName) != null;
@@ -374,7 +367,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 启动指定 APP */
+    
     public static void openApp(Context context, String packageName, int userId) {
         try {
             Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(packageName);
@@ -392,7 +385,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 是否有 Root 权限 */
+    
     public static boolean isRootAccess() {
         try {
             Boolean granted = Shell.isAppGrantedRoot();
@@ -402,7 +395,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 执行命令 */
+    
     public static String execShell(String cmd, boolean isSu) {
         try {
             List<String> out = (isSu ? Shell.su(cmd) : Shell.sh(cmd)).exec().getOut();
@@ -412,7 +405,7 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 隐藏或显示启动器图标 */
+    
     public static void hideOrShowLauncherIcon(Context context, boolean isShow) {
         context.getPackageManager().setComponentEnabledSetting(
                 new ComponentName(context.getPackageName(), BuildConfigWrapper.APPLICATION_ID + ".Home"),
@@ -420,7 +413,7 @@ public class FunctionFactoryKt {
                 PackageManager.DONT_KILL_APP);
     }
 
-    /** 获取启动器图标状态 */
+    
     public static boolean isLauncherIconShowing(Context context) {
         return context.getPackageManager().getComponentEnabledSetting(
                 new ComponentName(context.getPackageName(), BuildConfigWrapper.APPLICATION_ID + ".Home"))

@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - 异常记录列表 Activity (Java 化)
- */
+
 package io.github.sky.apperrors.ui.activity.errors;
 
 import android.app.Activity;
@@ -42,13 +40,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 异常记录列表 Activity */
+
 public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecordBinding> {
 
-    /** 请求保存文件回调标识 */
+    
     private static final int WRITE_REQUEST_CODE = 0;
 
-    /** 获取 Intent（FrameworkHooker 等调用） */
+    
     public static final Companion Companion = new Companion();
 
     public static class Companion {
@@ -59,13 +57,13 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
         }
     }
 
-    /** 当前导出文件的路径 */
+    
     private String outPutFilePath = "";
 
-    /** 回调适配器改变 */
+    
     private Runnable onChanged;
 
-    /** 全部的 APP 异常信息 */
+    
     private final List<AppErrorsInfoBean> listData = new ArrayList<>();
 
     @Override
@@ -134,7 +132,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
             dlg.cancelButton();
             dlg.show();
         });
-        /** 设置列表元素和 Adapter */
+        
         BaseAdapterFactoryKt.bindAdapter(binding.listView, creater -> {
             creater.onBindDatas(() -> listData);
             creater.onBindViews(AdapterAppErrorsRecordBinding.class, (b, position) -> {
@@ -156,7 +154,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                 AppErrorsDetailActivity.Companion.start(this, listData.get(position)));
     }
 
-    /** 更新列表数据（经广播从 system_server 拉取，异步回调刷新 UI） */
+    
     private void refreshData() {
         AppErrorsRecordData.fetchFromSystemServer(this, new android.content.BroadcastReceiver() {
             @Override
@@ -178,7 +176,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
         });
     }
 
-    /** 打包导出全部 */
+    
     private void exportAll() {
         clearAllExportTemp();
         StackTraceShareHelper.showChoose(this, LocaleFactoryKt.getLocale().getExportAll(), (sDeviceBrand, sDeviceModel, sDisplay, sPackageName) -> {
@@ -209,7 +207,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
         });
     }
 
-    /** 清空导出的临时文件 */
+    
     private void clearAllExportTemp() {
         File cache = getCacheDir();
         if (cache.exists()) {
@@ -218,7 +216,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
         }
     }
 
-    /** 获取异常的精简名称 */
+    
     private String simpleThwName(String text) {
         if (text != null && text.contains(".")) {
             String[] parts = text.split("\\.");

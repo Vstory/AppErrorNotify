@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking (api102 重构版) - 系统框架控制工具 (Java 化)
- */
+
 package io.github.sky.apperrors.utils.tool;
 
 import android.content.Context;
@@ -20,10 +18,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/** 系统框架控制工具 */
+
 public class FrameworkTool {
 
-    /** 重启系统 */
+    
     public static void restartSystem(Context context) {
         Runnable showWhenAccessRootFail = () -> {
             DialogBuilder<?> dlg = new DialogBuilder<>(context);
@@ -54,7 +52,7 @@ public class FrameworkTool {
         dlg.show();
     }
 
-    /** 获取已安装 APP 列表（UI 进程 PackageManager 直查） */
+    
     public static void fetchAppListData(Context context, AppFiltersBean filters, java.util.function.Consumer<ArrayList<AppInfoBean>> result) {
         List<PackageInfo> packages = FunctionFactoryKt.listOfPackages(context);
         ArrayList<AppInfoBean> list = new ArrayList<>();
@@ -107,7 +105,7 @@ public class FrameworkTool {
         return ai != null && (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
     }
 
-    /** 检查模块是否激活（XposedService 已连接即有效） */
+    
     public static void checkingActivated(java.util.function.Consumer<Boolean> result) {
         result.accept(ModuleServiceHolder.isActive());
     }

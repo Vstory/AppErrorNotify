@@ -42,12 +42,12 @@ android {
     lint { checkReleaseBuilds = false }
 
 
-    // api102 三件套（META-INF/xposed/*）必须合入 APK
+    
 
 }
 
 dependencies {
-    // libxposed 现代 API（本地 jar：api=框架提供 compileOnly / interface+service=模块自带 implementation）
+    
     compileOnly(files("libs/libxposed/api.jar"))
     implementation(files("libs/libxposed/interface.jar"))
     implementation(files("libs/libxposed/service.jar"))

@@ -1,26 +1,19 @@
-# 构建产物
 build/
 app/build/
 .gradle/
 .kotlin/
 *.apk
 
-# 签名密钥（绝不推送）
 .secret/
 
-# 本地配置
 local.properties
 .idea/
 *.iml
 .DS_Store
 
-# 项目文档（版本流水/开发记录，不公开）
 dev-project/
 
-# 发布产物
 release/
-# manager.apk 解包素材（本地参考用，不提交）
 解包/
 
-# Wiki 源文件草稿(独立仓库,不入代码库)
 wiki-source/

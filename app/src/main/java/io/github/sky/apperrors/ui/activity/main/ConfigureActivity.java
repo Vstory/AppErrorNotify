@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - 应用配置模板 Activity (Java 化)
- */
+
 package io.github.sky.apperrors.ui.activity.main;
 
 import androidx.core.view.ViewKt;
@@ -27,27 +25,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** 应用配置模板 Activity */
+
 public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
 
-    /** 过滤条件 */
+    
     private AppFiltersBean appFilters = new AppFiltersBean();
 
-    /** 回调适配器改变 */
+    
     private Runnable onChanged;
 
-    /** 全部的 APP 信息 */
+    
     private final List<AppInfoBean> listData = new ArrayList<>();
 
     @Override
     protected void onCreate() {
-        // 打开应用配置模板界面时重新加载内存集合，确保列表显示与配置操作基于最新数据
+        
         AppErrorsConfigData.refresh();
         binding.titleBackIcon.setOnClickListener(v -> finish());
         binding.globalIcon.setOnClickListener(v -> {
             showAppConfigDialog(LocaleFactoryKt.getLocale().getGlobalConfig(), "", false, false, type -> {
                 AppErrorsConfigData.putAppShowingType(type, "");
-                AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
+                AppErrorsConfigData.notifyConfigChanged(this);   
                 if (onChanged != null) onChanged.run();
             });
         });
@@ -59,7 +57,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                 dlg.confirmButton(() -> {
                     for (AppInfoBean bean : listData)
                         AppErrorsConfigData.putAppShowingType(type, bean.packageName);
-                    AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
+                    AppErrorsConfigData.notifyConfigChanged(this);   
                     if (onChanged != null) onChanged.run();
                 });
                 dlg.cancelButton();
@@ -93,7 +91,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                     });
             });
         });
-        /** 设置列表元素和 Adapter */
+        
         BaseAdapterFactoryKt.bindAdapter(binding.listView, creater -> {
             creater.onBindDatas(() -> listData);
             creater.onBindViews(AdapterAppInfoBinding.class, (b, position) -> {
@@ -104,7 +102,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                 if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.GLOBAL, bean.packageName))
                     typeText = LocaleFactoryKt.getLocale().getFollowGlobalConfig();
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.DIALOG, bean.packageName))
-                    typeText = LocaleFactoryKt.getLocale().getFollowGlobalConfig();   // 旧配置迁移后按跟随全局显示
+                    typeText = LocaleFactoryKt.getLocale().getFollowGlobalConfig();   
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, bean.packageName))
                     typeText = LocaleFactoryKt.getLocale().getShowErrorsNotify();
                 else if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, bean.packageName))
@@ -120,11 +118,11 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
             AppInfoBean bean = listData.get(position);
             showAppConfigDialog(bean.name, bean.packageName, false, true, type -> {
                 AppErrorsConfigData.putAppShowingType(type, bean.packageName);
-                AppErrorsConfigData.notifyConfigChanged(this);   // 广播 → system_server 立即刷新
+                AppErrorsConfigData.notifyConfigChanged(this);   
                 if (onChanged != null) onChanged.run();
             });
         });
-        /** 模块未完全激活将显示警告 */
+        
         if (!MainActivity.isModuleValied) {
             DialogBuilder<?> dlg = new DialogBuilder<>(this);
             dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
@@ -134,7 +132,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
             dlg.noCancelable();
             dlg.show();
         }
-        /** 开始刷新数据 */
+        
         refreshData();
     }
 
@@ -145,7 +143,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
         else throw new IllegalStateException("Invalid app filters type");
     }
 
-    /** 显示应用配置对话框 */
+    
     private void showAppConfigDialog(String title, String packageName, boolean isNotSetDefaultValue,
                                      boolean isShowGlobalConfig, Consumer<AppErrorsConfigType> result) {
         DialogBuilderFactoryKt.showDialog_Generics(this, DiaAppConfigBinding.class, false, builder -> {
@@ -171,7 +169,7 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
         });
     }
 
-    /** 刷新列表数据 */
+    
     private void refreshData() {
         ViewKt.setVisible(binding.listProgressView, true);
         ViewKt.setVisible(binding.globalIcon, false);

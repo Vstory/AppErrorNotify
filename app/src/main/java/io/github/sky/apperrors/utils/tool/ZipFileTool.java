@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - 处理压缩文件 (Java 化)
- */
+
 package io.github.sky.apperrors.utils.tool;
 
 import java.io.BufferedInputStream;
@@ -14,12 +12,12 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-/** 处理压缩文件 */
+
 public class ZipFileTool {
 
     private static final int BUFF_SIZE = 2048;
 
-    /** 压缩整个文件夹中的所有文件 - 生成指定名称的 Zip 压缩包 */
+    
     public static void zipMultiFile(String filePath, String zipPath, boolean isDirFlag) {
         try {
             File file = new File(filePath);
@@ -39,7 +37,7 @@ public class ZipFileTool {
         }
     }
 
-    /** 解压文件 */
+    
     public static void unZipFile(String unZipPath, String zipPath) {
         try {
             unZipFileByInput(unZipPath, new FileInputStream(zipPath));
@@ -47,7 +45,7 @@ public class ZipFileTool {
         }
     }
 
-    /** 解压文件 */
+    
     private static void unZipFileByInput(String unZipPath, FileInputStream zips) {
         String path = createSeparator(unZipPath);
         BufferedOutputStream bos = null;

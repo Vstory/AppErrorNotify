@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking - BaseAdapter 工厂 (Java 化, 保持 BaseAdapterFactoryKt 类名)
- */
+
 package io.github.sky.apperrors.utils.factory;
 
 import android.content.Context;
@@ -17,10 +15,10 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-/** BaseAdapter 工厂（原 BaseAdapterFactory.kt） */
+
 public class BaseAdapterFactoryKt {
 
-    /** 绑定 BaseAdapter 到 ListView */
+    
     public static BaseAdapter bindAdapter(ListView listView, java.util.function.Consumer<BaseAdapterCreater> initiate) {
         BaseAdapterCreater creater = new BaseAdapterCreater(listView.getContext());
         if (initiate != null) initiate.accept(creater);
@@ -30,27 +28,27 @@ public class BaseAdapterFactoryKt {
         return adapter;
     }
 
-    /** BaseAdapter 创建类 */
+    
     public static class BaseAdapterCreater {
 
         private final Context context;
 
-        /** 当前 List 回调 */
+        
         public Supplier<List<?>> listDataCallback;
 
-        /** 当前 BaseAdapter */
+        
         public BaseAdapter baseAdapter;
 
         public BaseAdapterCreater(Context context) {
             this.context = context;
         }
 
-        /** 绑定 List 到 ListView */
+        
         public void onBindDatas(Supplier<List<?>> result) {
             listDataCallback = result;
         }
 
-        /** 绑定 BaseAdapter 到 ListView（泛型 VB） */
+        
         public <VB extends ViewBinding> void onBindViews(Class<VB> bindingClass, BiConsumer<VB, Integer> bindViews) {
             baseAdapter = new BaseAdapter() {
                 @Override

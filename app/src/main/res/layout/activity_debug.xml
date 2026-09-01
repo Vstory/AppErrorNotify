@@ -9,7 +9,7 @@
     tools:context=".ui.activity.debug.DebugActivity"
     tools:ignore="ContentDescription,UnusedAttribute">
 
-    <!-- 顶栏 -->
+    
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -59,7 +59,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 调试日志开关卡 -->
+    
     <com.google.android.material.card.MaterialCardView
         style="@style/Widget.AppErrors.Card"
         android:layout_width="match_parent"

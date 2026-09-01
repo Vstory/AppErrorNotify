@@ -606,7 +606,7 @@
                 android:textSize="12sp"
                 android:typeface="monospace" />
 
-                <!-- 堆栈右上角小复制按钮：点击复制堆栈内容（只堆栈，不含设备信息） -->
+                
                 <androidx.constraintlayout.utils.widget.ImageFilterView
                     android:id="@+id/stack_copy_button"
                     android:layout_width="28dp"

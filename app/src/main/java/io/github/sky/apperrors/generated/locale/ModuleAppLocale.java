@@ -1,6 +1,4 @@
-/*
- * AppErrorsTracking (api102 重构版) - 自动生成的国际化访问类 (Java 化)
- */
+
 package io.github.sky.apperrors.generated.locale;
 
 import android.content.Context;
@@ -12,7 +10,7 @@ import java.util.Locale;
 
 import kotlin.jvm.functions.Function0;
 
-/** 国际化访问类（原 ModuleAppLocale.kt，自动生成） */
+
 public class ModuleAppLocale {
 
     private final Function0<Resources> provider;
@@ -45,10 +43,10 @@ public class ModuleAppLocale {
         return r != null ? r.getString(resId, args) : "";
     }
 
-    /** 系统语言（如 zh / en） */
+    
     public String getLanguage() { return Locale.getDefault().getLanguage(); }
 
-    /** 系统国家/地区（如 CN / US） */
+    
     public String getCountry() { return Locale.getDefault().getCountry(); }
 
     public String getAccessRootFail() { return str(R.string.access_root_fail); }

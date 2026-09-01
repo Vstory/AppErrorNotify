@@ -85,7 +85,7 @@
             android:clipToPadding="false"
             android:orientation="vertical">
 
-            <!-- 状态激活卡：浅绿底深字，左侧文字列 + 右侧圆环勾 -->
+            
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/main_lin_status"
                 style="@style/Widget.AppErrors.Card"
@@ -156,7 +156,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 信息卡：白色无边框圆角，label黑大字+value灰小字（去复制按钮） -->
+            
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/info_card"
                 style="@style/Widget.AppErrors.Card"
@@ -244,7 +244,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 偏好设置卡：全部为开关（一级即时生效） -->
+            
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.AppErrors.Card"
                 android:layout_width="match_parent"
@@ -274,7 +274,7 @@
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
-                    <!-- 仅显示前台应用发生的异常 -->
+                    
                     <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/only_show_errors_in_front_switch"
                         android:layout_width="match_parent"
@@ -294,7 +294,7 @@
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
 
-                    <!-- 仅显示应用主进程发生的异常 -->
+                    
                     <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/only_show_errors_in_main_process_switch"
                         android:layout_width="match_parent"
@@ -314,7 +314,7 @@
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
 
-                    <!-- 以文件方式分享异常堆栈 -->
+                    
                     <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/share_with_file"
                         android:layout_width="match_parent"
@@ -334,7 +334,7 @@
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
 
-                    <!-- 应用配置模板开关 -->
+                    
                     <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/enable_apps_configs_template_switch"
                         android:layout_width="match_parent"
@@ -354,7 +354,7 @@
                         android:textColor="@color/colorTextDark"
                         android:textSize="12sp" />
 
-                    <!-- 在桌面隐藏模块图标 -->
+                    
                     <io.github.sky.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/hide_icon_in_launcher_switch"
                         android:layout_width="match_parent"
@@ -387,7 +387,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 功能管理卡：全部为入口行（点击进入二级页面/对话框） -->
+            
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.AppErrors.Card"
                 android:layout_width="match_parent"
@@ -417,7 +417,7 @@
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
-                    <!-- 管理应用配置模板：入口行（仅启用配置模板时显示） -->
+                    
                     <LinearLayout
                         android:id="@+id/mgr_apps_configs_template_button"
                         android:layout_width="match_parent"
@@ -474,7 +474,7 @@
                             android:tint="@color/colorTextGray" />
                     </LinearLayout>
 
-                    <!-- 通知「忽略」按钮行为：入口行（当前值副标题，点开对话框选择） -->
+                    
                     <LinearLayout
                         android:id="@+id/mute_ignore_behavior_row"
                         android:layout_width="match_parent"
@@ -530,7 +530,7 @@
                             android:tint="@color/colorTextGray" />
                     </LinearLayout>
 
-                    <!-- 查看异常历史记录：入口行 -->
+                    
                     <LinearLayout
                         android:id="@+id/view_errors_record_button"
                         android:layout_width="match_parent"
@@ -586,7 +586,7 @@
                             android:tint="@color/colorTextGray" />
                     </LinearLayout>
 
-                    <!-- 查看已忽略异常的应用：入口行 -->
+                    
                     <LinearLayout
                         android:id="@+id/view_muted_errors_apps_button"
                         android:layout_width="match_parent"
@@ -642,7 +642,7 @@
                             android:tint="@color/colorTextGray" />
                     </LinearLayout>
 
-                    <!-- 调试日志：入口行 -->
+                    
                     <LinearLayout
                         android:id="@+id/debug_setting_button"
                         android:layout_width="match_parent"
@@ -700,7 +700,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 关于本项目卡 -->
+            
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/payment_following_zh_cn_item"
                 style="@style/Widget.AppErrors.Card"
