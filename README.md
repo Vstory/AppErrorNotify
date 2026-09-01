@@ -28,6 +28,31 @@
 - 作用域：**`system_server`** 系统框架进程（scope.list = `android`）
 - minSdk **26** / targetSdk **37** / compileSdk **37**
 
+## 目录结构
+
+```
+app/src/main/
+├── java/io/github/sky/apperrors/
+│   ├── application/          # 模块 Application(AppErrorsApplication)
+│   ├── bean/                 # 实体类(AppErrorsInfoBean/AppInfoBean/...)
+│   ├── constants/            # 常量(ModuleVersion/PackageName)
+│   ├── data/                 # 数据层(ConfigData/AppErrorsRecordData/...)
+│   ├── hook/                 # 模块入口 HookEntry + 系统框架 Hook
+│   │   └── entity/           #   FrameworkHooker 等 hook 实现
+│   ├── locale/               # 语言/locale 处理
+│   ├── service/              # QuickStartTileService(快速设置磁贴)
+│   ├── ui/                   # 界面(activity/widget)
+│   │   └── activity/         #   主界面/异常记录/详情/配置/调试
+│   ├── utils/                # 工具(factory/tool)
+│   └── wrapper/              # BuildConfigWrapper 等包装
+├── res/                      # 资源(layout/values/values-night/values-zh-rCN/...)
+├── resources/META-INF/xposed # LSPosed 模块声明(入口/作用域/API)
+└── libs/libxposed/           # 本地 libxposed API 102 jar(api/interface/service)
+
+build.sh          # 统一构建脚本(内置 JDK17)
+gradle/libs.versions.toml  # 版本目录(Gradle Version Catalog)
+```
+
 ## 构建
 
 > ⚠️ **构建必须使用 JDK17**（arm64 环境 `/usr/lib/jvm/java-21-openjdk-arm64` 为 JRE-only，无 javac，直接 `./gradlew` 会报错）。
