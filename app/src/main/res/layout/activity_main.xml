@@ -21,11 +21,16 @@
             android:layout_height="wrap_content"
             android:background="@color/colorThemeBackground"
             app:collapsedTitleTextColor="@color/colorTextGray"
+            app:contentScrim="@color/colorThemeBackground"
+            app:expandedTitleGravity="center_vertical|start"
+            app:expandedTitleMarginStart="20dp"
+            app:expandedTitleMarginEnd="20dp"
             app:expandedTitleTextColor="@color/colorTextGray"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
+            app:title="@string/app_name"
             app:titleCollapseMode="scale">
 
-            <!-- 展开态内容：右侧图标随滚动滚出隐藏（标题由 CollapsingToolbarLayout 的 app:title 缩放） -->
+            <!-- 展开态内容：右上角图标随滚动滚出隐藏（标题由 CollapsingToolbarLayout 缩放） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -60,7 +65,7 @@
                     android:tooltipText="@string/project_address" />
             </LinearLayout>
 
-            <!-- 折叠后固定的工具栏：标题由 CollapsingToolbarLayout 管理(缩放)，此处只作 pin 支架 -->
+            <!-- 折叠固定工具栏：标题固定顶栏（位置1），图标随展开内容滚出 -->
             <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
@@ -69,7 +74,8 @@
                 android:paddingStart="20dp"
                 android:paddingEnd="20dp"
                 android:titleTextColor="@color/colorTextGray"
-                app:layout_collapseMode="pin" />
+                app:layout_collapseMode="pin"
+                app:title="@string/app_name" />
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
     </com.google.android.material.appbar.AppBarLayout>
