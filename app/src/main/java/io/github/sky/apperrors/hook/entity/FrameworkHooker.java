@@ -274,7 +274,17 @@ public class FrameworkHooker {
                 java.lang.reflect.Method addPath = android.content.res.AssetManager.class.getMethod("addAssetPath", String.class);
                 int cookie = (Integer) addPath.invoke(am2, apkPath);
                 if (cookie == 0) return null;
-                return new android.content.res.Resources(am2, context.getResources().getDisplayMetrics(), context.getResources().getConfiguration());
+                // 依据用户语言偏好应用目标语言（崩溃通知跟随界面语言设定）
+                android.content.res.Configuration cfg = new android.content.res.Configuration(context.getResources().getConfiguration());
+                try {
+                    int langMode = io.github.sky.apperrors.utils.tool.LanguageData.getMode();
+                    if (langMode == io.github.sky.apperrors.utils.tool.LanguageData.MODE_ENGLISH) {
+                        cfg.setLocale(java.util.Locale.ENGLISH);
+                    } else if (langMode == io.github.sky.apperrors.utils.tool.LanguageData.MODE_CHINESE) {
+                        cfg.setLocale(java.util.Locale.SIMPLIFIED_CHINESE);
+                    }
+                } catch (Throwable ignored) { /* 读偏好失败则跟随系统 */ }
+                return new android.content.res.Resources(am2, context.getResources().getDisplayMetrics(), cfg);
             } catch (Throwable t) {
                 // fallback: 老方案（至少尝试）
                 return context.getPackageManager().getResourcesForApplication(ai);
@@ -417,6 +427,13 @@ public class FrameworkHooker {
                             // 配置模板变更：UI 保存后立即刷新内存 Set（原版靠 onRefreshFrameworkPrefsData 回调，
                             //  libxposed 无此回调 → 用广播等价；崩溃时读时刷新仍兜底）
                             AppErrorsConfigData.refresh();
+                            // UI 语言切换也走此广播：重新绑定 I18n，让崩溃通知立即用目标语言
+                            if (LocaleFactoryKt.isLocaleInitialized()) {
+                                LocaleFactoryKt.attachLocale(() -> {
+                                    android.content.res.Resources r = moduleResources();
+                                    return r != null ? r : null;
+                                });
+                            }
                             logInfo("Config channel: refreshed app config template from UI");
                         }
                     } catch (Throwable t) {

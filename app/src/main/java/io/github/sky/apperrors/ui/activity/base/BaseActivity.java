@@ -4,6 +4,7 @@
 package io.github.sky.apperrors.ui.activity.base;
 
 import android.app.ActivityManager;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,6 +27,12 @@ public abstract class BaseActivity<VB extends ViewBinding> extends AppCompatActi
 
     /** 获取绑定布局对象 */
     protected VB binding;
+
+    /** 应用强制语言(attachBaseContext 阶段) — 整个 Activity 的 Resources 用目标语言 */
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(io.github.sky.apperrors.utils.tool.LanguageData.wrap(newBase));
+    }
 
     @SuppressWarnings("unchecked")
     @Override

@@ -9,9 +9,6 @@
         <item name="colorSecondary">@color/colorPrimaryAccent</item>
         <item name="colorSecondaryVariant">@color/colorPrimaryAccent</item>
         <item name="colorOnSecondary">@color/white</item>
-        <!-- 禁用系统默认 action bar（用自定义 Toolbar/CollapsingToolbarLayout，避免已设 window action bar 冲突） -->
-        <item name="windowActionBar">false</item>
-        <item name="windowNoTitle">true</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">@color/white</item>
         <item name="android:windowLightStatusBar">true</item>
@@ -47,19 +44,5 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textAppearance">?textAppearanceBodyMedium</item>
         <item name="android:textColor">@color/colorTextGray</item>
-    </style>
-
-    <!-- CollapsingToolbarLayout 展开态标题外观（大标题） -->
-    <style name="CollapsingTitleExpanded" parent="TextAppearance.AppCompat.Title">
-        <item name="android:textSize">22sp</item>
-        <item name="android:textColor">@color/colorTextGray</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-
-    <!-- CollapsingToolbarLayout 折叠态标题外观（小标题） -->
-    <style name="CollapsingTitleCollapsed" parent="TextAppearance.AppCompat.Title">
-        <item name="android:textSize">16sp</item>
-        <item name="android:textColor">@color/colorTextGray</item>
-        <item name="android:textStyle">bold</item>
     </style>
 </resources>

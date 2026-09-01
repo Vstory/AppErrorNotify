@@ -27,6 +27,7 @@ import io.github.sky.apperrors.ui.activity.errors.AppErrorsRecordActivity;
 import io.github.sky.apperrors.utils.factory.DialogBuilder;
 import io.github.sky.apperrors.utils.factory.FunctionFactoryKt;
 import io.github.sky.apperrors.utils.tool.FrameworkTool;
+import io.github.sky.apperrors.utils.tool.LanguageData;
 import io.github.sky.apperrors.utils.tool.ModuleServiceHolder;
 
 import io.github.libxposed.service.XposedService;
@@ -45,15 +46,18 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
     private static final int EASTER_EGG_CLICK_TARGET = 7;
     private static final int STYLE_MINE = 0;
     private static final int STYLE_MANAGER = 1;
+    /** 标题点击5次切换语言 */
+    private static final int MAIN_TITLE_CLICK_TARGET = 5;
     private int easterEggClickCount = 0;
     private android.content.SharedPreferences easterEggPrefs;
+    /** 标题连续点击切换语言的次数计数（点击5次触发切换） */
+    private int mainTitleClickCount = 0;
 
     @Override
     protected void onCreate() {
         checkingTopComponentName();
         easterEggPrefs = getSharedPreferences("easter_egg", MODE_PRIVATE);
-        /** 设置标题（main_title，普通 TextView 一定显示）+ CI 标识 */
-        binding.mainTitle.setText(getString(R.string.app_name));
+        /** 设置标题（main_title，布局默认 app_name）+ CI 标识 */
         if (ModuleVersion.isCiMode()) {
             binding.mainTitle.setText("CI " + ModuleVersion.GITHUB_COMMIT_ID);
             binding.mainTitle.setOnClickListener(v -> {
@@ -65,16 +69,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
                 dlg.show();
             });
         }
-        /** 折叠动画：非滚动时显示 main_title 大标题+图标；滚动收起后 MaterialToolbar 显示折叠标题(居中)、图标隐藏 */
-        binding.toolbar.setTitle("");
-        binding.appBar.addOnOffsetChangedListener((appBar, verticalOffset) -> {
-            int total = appBar.getTotalScrollRange();
-            boolean collapsed = total > 0 && Math.abs(verticalOffset) >= total;
-            binding.mainTitle.setAlpha(collapsed ? 0f : 1f);
-            binding.titleLoggerIcon.setAlpha(collapsed ? 0f : 1f);
-            binding.titleGithubIcon.setAlpha(collapsed ? 0f : 1f);
-            binding.toolbar.setTitle(collapsed ? getString(R.string.app_name) : "");
-        });
+        /** 点击标题文本5次切换界面语言（仅系统中文时生效，类似彩蛋，限定标题文本区域） */
+        setupTitleLanguageToggle();
         binding.mainTextModuleVersion.setText(getString(R.string.module_version_plain, ModuleVersion.INSTANCE.toString()));
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInFrontSwitch,
                 () -> ConfigData.isEnableOnlyShowErrorsInFront(),
@@ -117,6 +113,46 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         /** 信息卡：填充设备/框架信息（参考 LSPosed 概览页 info_card） */
         initInfoCard();
         refreshInfoCard();
+    }
+
+    /** 点击标题文本5次切换界面语言：仅系统语言为中文时生效（类似彩蛋，限定标题文本区域） */
+    private void setupTitleLanguageToggle() {
+        // 仅系统语言为中文时提供切换（需求限定）
+        if (!LanguageData.isSystemChinese(this)) return;
+        // CI 构建下标题已有 CI 弹窗 click，不抢注语言切换
+        if (ModuleVersion.isCiMode()) return;
+        binding.mainTitle.setOnClickListener(v -> handleTitleClick());
+    }
+
+    /** 标题点击计数：达到5次触发切换语言（中↔英） */
+    private void handleTitleClick() {
+        mainTitleClickCount++;
+        if (mainTitleClickCount < MAIN_TITLE_CLICK_TARGET) {
+            int left = MAIN_TITLE_CLICK_TARGET - mainTitleClickCount;
+            FunctionFactoryKt.toast(this, getString(R.string.lang_switch_progress, left));
+            return;
+        }
+        mainTitleClickCount = 0;
+        switchLanguage();
+    }
+
+    /** 切换界面语言（中↔英） */
+    private void switchLanguage() {
+        int curMode = LanguageData.getMode();
+        boolean isEnglish = curMode == LanguageData.MODE_ENGLISH
+                || (curMode == LanguageData.MODE_SYSTEM && !LanguageData.isSystemChinese(this));
+        int next = isEnglish ? LanguageData.MODE_CHINESE : LanguageData.MODE_ENGLISH;
+        LanguageData.setMode(next);
+        // 重新绑定 I18n（用目标语言 Resources），否则 getLocale() 仍读旧语言
+        LocaleFactoryKt.attachLocale(this);
+        // 广播通知 system_server 语言已变，让崩溃通知立即用目标语言
+        try { AppErrorsConfigData.notifyConfigChanged(this); } catch (Throwable ignored) { }
+        // 用当前界面语言提示切换结果（切英文→显示中文"已切换为英文" / 切中文→显示英文"Switched to Chinese"）
+        FunctionFactoryKt.toast(this, next == LanguageData.MODE_ENGLISH
+                ? getString(R.string.lang_switch_to_english)
+                : getString(R.string.lang_switch_to_chinese));
+        // 让当前界面立即以目标语言重建
+        recreate();
     }
 
     /** 刷新「忽略该应用」按钮行为的当前值显示 */

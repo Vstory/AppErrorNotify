@@ -174,4 +174,9 @@
     <string name="mute_ignore_behavior_unlock">Until device unlocks</string>
     <string name="mute_ignore_behavior_restart">Until device restarts</string>
                 <string name="mute_ignore_behavior_tip">Configures how long the &quot;Ignore App&quot; action in the error notification ignores the app.\nUntil unlocks: cleared automatically after the device is unlocked.\nUntil restarts: cleared automatically after the device is restarted (default).</string>
+    <!-- 界面语言切换（点击标题5次） -->
+    <string name="lang_switch_progress">%1$d more taps to switch language</string>
+    <string name="lang_switch_to_english">Switched to English</string>
+    <string name="lang_switch_to_chinese">Switched to Chinese</string>
+    <string name="lang_switch_to_system">Switched to system language</string>
 </resources>

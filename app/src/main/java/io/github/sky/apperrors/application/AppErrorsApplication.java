@@ -26,13 +26,13 @@ public class AppErrorsApplication extends Application implements XposedServiceHe
         super.onCreate();
         /** 连接 XposedService（模块激活检测/远程存储） */
         XposedServiceHelper.registerListener(this);
+        /** 装载存储控制类（service 未连接时 fallback 本地）——需在 bind I18n 前，attachLocale 懒读语言偏好依赖 ConfigData */
+        ConfigData.init(this);
+        MutedErrorsData.init(this);
         /** 绑定 I18n */
         LocaleFactoryKt.attachLocale(this);
         /** 跟随系统夜间模式 */
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-        /** 装载存储控制类（service 未连接时 fallback 本地） */
-        ConfigData.init(this);
-        MutedErrorsData.init(this);
         ModuleLogger.init(this);
     }
 

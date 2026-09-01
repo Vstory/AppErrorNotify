@@ -20,7 +20,7 @@ public class ModuleAppLocale {
     private static volatile ModuleAppLocale instance;
 
     public static ModuleAppLocale attach(Context context) {
-        return new ModuleAppLocale(() -> context.getResources());
+        return new ModuleAppLocale(() -> io.github.sky.apperrors.utils.tool.LanguageData.resolveResources(context));
     }
 
     public static ModuleAppLocale attach(Function0<Resources> provider) {

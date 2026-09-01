@@ -66,18 +66,6 @@
                     android:tint="@color/colorTextGray"
                     android:tooltipText="@string/project_address" />
             </LinearLayout>
-
-            <!-- 折叠后固定标题：滚动收起后 MaterialToolbar 固定顶栏，显示折叠标题(居中) -->
-            <com.google.android.material.appbar.MaterialToolbar
-                android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                android:background="@color/colorThemeBackground"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:titleTextColor="@color/colorTextGray"
-                app:layout_collapseMode="pin"
-                app:titleCentered="true" />
         </com.google.android.material.appbar.CollapsingToolbarLayout>
     </com.google.android.material.appbar.AppBarLayout>
 

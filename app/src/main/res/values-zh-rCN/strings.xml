@@ -167,4 +167,9 @@
     <string name="mute_ignore_behavior_unlock">直到解锁</string>
     <string name="mute_ignore_behavior_restart">直到重启</string>
             <string name="mute_ignore_behavior_tip">配置错误通知中「忽略」按钮的忽略时长。\n直到解锁：设备解锁后自动清除。\n直到重启：设备重启后自动清除（默认）。</string>
+    <!-- 界面语言切换（点击标题5次） -->
+    <string name="lang_switch_progress">还差 %1$d 次切换到英文</string>
+    <string name="lang_switch_to_english">已切换为英文</string>
+    <string name="lang_switch_to_chinese">已切换为中文</string>
+    <string name="lang_switch_to_system">已切换为跟随系统语言</string>
 </resources>
