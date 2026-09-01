@@ -9,6 +9,9 @@
         <item name="colorSecondary">@color/colorPrimaryAccent</item>
         <item name="colorSecondaryVariant">@color/colorPrimaryAccent</item>
         <item name="colorOnSecondary">@color/white</item>
+        <!-- 禁用系统默认 action bar（用自定义 Toolbar/CollapsingToolbarLayout，避免已设 window action bar 冲突） -->
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">@color/white</item>
         <item name="android:windowLightStatusBar">true</item>

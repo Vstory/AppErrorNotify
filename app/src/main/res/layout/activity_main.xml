@@ -26,13 +26,12 @@
             app:expandedTitleGravity="top|start"
             app:expandedTitleMarginStart="20dp"
             app:expandedTitleMarginEnd="20dp"
-            app:expandedTitleMarginTop="0dp"
             app:expandedTitleTextAppearance="@style/CollapsingTitleExpanded"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:title="@string/app_name"
             app:titleCollapseMode="scale">
 
-            <!-- 展开态内容：右上角图标随滚动滚出隐藏（标题在左上，图标在右上，顶部紧凑无空） -->
+            <!-- 展开态内容：右上角图标随滚动滚出隐藏 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -40,7 +39,7 @@
                 android:orientation="horizontal"
                 android:paddingStart="20dp"
                 android:paddingTop="14dp"
-                android:paddingBottom="6dp"
+                android:paddingBottom="14dp"
                 android:paddingEnd="20dp"
                 app:layout_collapseMode="parallax">
 
@@ -67,7 +66,7 @@
                     android:tooltipText="@string/project_address" />
             </LinearLayout>
 
-            <!-- 折叠固定工具栏：标题固定顶栏（位置1），图标随展开内容滚出（标题设在 CollapsingToolbarLayout 上，勿设到 Toolbar） -->
+            <!-- 折叠固定工具栏：滚动收起后标题固定顶栏（给 setSupportActionBar，标题由CollapsingToolbarLayout管理） -->
             <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
