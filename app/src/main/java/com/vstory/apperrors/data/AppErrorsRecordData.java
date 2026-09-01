@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.util.Log;
 
 import com.vstory.apperrors.bean.AppErrorsInfoBean;
+import com.vstory.apperrors.utils.factory.FunctionFactoryKt;
 import com.vstory.apperrors.wrapper.BuildConfigWrapper;
 import com.google.gson.Gson;
 
@@ -356,7 +357,7 @@ public class AppErrorsRecordData {
                 @Override
                 public void onReceive(android.content.Context ctx, android.content.Intent intent) {
                     if (intent == null) return;
-                    Object extra = intent.getSerializableExtra("errors");
+                    Object extra = FunctionFactoryKt.getSerializableExtraCompat(intent, "errors");
                     
                     
                     

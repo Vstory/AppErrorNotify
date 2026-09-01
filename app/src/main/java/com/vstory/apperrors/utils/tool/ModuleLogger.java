@@ -146,9 +146,20 @@ public class ModuleLogger {
                         ctx.unregisterReceiver(this);
                     } catch (Throwable ignored) {
                     }
-                    Object extra = intent != null ? intent.getSerializableExtra(EXTRA_LOGS) : null;
-                    if (extra instanceof java.util.ArrayList) {
-                        java.util.ArrayList<?> raw = (java.util.ArrayList<?>) extra;
+                    
+                    
+                    Object extra = null;
+                    if (intent != null) {
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            extra = intent.getSerializableExtra(EXTRA_LOGS, java.io.Serializable.class);
+                        } else {
+                            extra = intent.getSerializableExtra(EXTRA_LOGS);
+                        }
+                    }
+                    
+                    
+                    if (extra instanceof java.util.List) {
+                        java.util.List<?> raw = (java.util.List<?>) extra;
                         java.util.ArrayList<LogData> remote = new java.util.ArrayList<>();
                         for (Object o : raw) if (o instanceof LogData) remote.add((LogData) o);
                         synchronized (inMemory) {

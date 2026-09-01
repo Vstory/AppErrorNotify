@@ -263,7 +263,7 @@ public class FunctionFactoryKt {
         try {
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            ModuleLogger.log("W", "AppErrorsTracking", msg, e);
+            ModuleLogger.log("E", "AppErrorNotify", msg, e);
         }
     }
 

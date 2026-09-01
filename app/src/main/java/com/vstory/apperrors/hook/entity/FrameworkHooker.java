@@ -36,6 +36,7 @@ import com.vstory.apperrors.locale.LocaleFactoryKt;
 import com.vstory.apperrors.ui.activity.errors.AppErrorsDetailActivity;
 import com.vstory.apperrors.ui.activity.errors.AppErrorsRecordActivity;
 import com.vstory.apperrors.utils.factory.FunctionFactoryKt;
+import com.vstory.apperrors.utils.tool.Debug;
 import com.vstory.apperrors.utils.tool.ModuleLogger;
 import com.vstory.apperrors.wrapper.BuildConfigWrapper;
 
@@ -82,7 +83,6 @@ public class FrameworkHooker {
             String p;
             switch (level) {
                 case Log.ERROR: p = "E"; break;
-                case Log.WARN: p = "W"; break;
                 case Log.INFO: p = "I"; break;
                 case Log.DEBUG: p = "D"; break;
                 default: p = "I"; break;
@@ -94,11 +94,14 @@ public class FrameworkHooker {
     private static void logError(Object msg, Throwable e) { log(Log.ERROR, msg, e); }
     private static void logError(Object msg) { log(Log.ERROR, msg, null); }
     private static void logInfo(Object msg) { log(Log.INFO, msg, null); }
-    private static void logWarn(Object msg) { log(Log.WARN, msg, null); }
     
     private static void logDebug(Object msg) {
         if (!ConfigData.isEnableDebug()) return;
-        log(Log.INFO, "[DEBUG] " + (msg != null ? msg.toString() : ""), null);
+        String m = msg != null ? msg.toString() : "";
+        
+        Debug.d(TAG, m);
+        
+        ModuleLogger.log("D", TAG, m, null);
     }
 
     
@@ -323,7 +326,7 @@ public class FrameworkHooker {
         try {
             AppErrorsRecordData.init(context);
         } catch (Throwable t) {
-            logError("AppErrorsRecordData.init failed", t);
+            logError("异常记录数据初始化失败\n  " + t, t);
         }
         registerLifecycle(context);
         registerErrorChannel(context);
@@ -391,7 +394,7 @@ public class FrameworkHooker {
                             AppErrorsRecordData.clearAll();
                             logDebug("Error channel: cleared all records from UI");
                         } else if (ACTION_REMOVE_ERROR.equals(action)) {
-                            Object bean = intent.getSerializableExtra(EXTRA_BEAN);
+                            Object bean = FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_BEAN);
                             if (bean instanceof com.vstory.apperrors.bean.AppErrorsInfoBean)
                                 AppErrorsRecordData.remove((com.vstory.apperrors.bean.AppErrorsInfoBean) bean);
                             logDebug("Error channel: removed one record from UI");
@@ -422,7 +425,7 @@ public class FrameworkHooker {
                                 }
                             }
                         } else if (ACTION_UNMUTE_ERROR.equals(action)) {
-                            Object bean = intent.getSerializableExtra(EXTRA_BEAN);
+                            Object bean = FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_BEAN);
                             if (bean instanceof com.vstory.apperrors.bean.MutedErrorsAppBean)
                                 MutedErrorsData.unmuteErrorsApp((com.vstory.apperrors.bean.MutedErrorsAppBean) bean);
                             logDebug("Mute channel: unmuted one app");
@@ -443,7 +446,7 @@ public class FrameworkHooker {
                             logDebug("Config channel: refreshed app config template from UI");
                         }
                     } catch (Throwable t) {
-                        logWarn("Error channel handle failed: " + t);
+                        logError("错误通道处理失败\n  " + t);
                     }
                 }
             };
@@ -465,7 +468,7 @@ public class FrameworkHooker {
             errorChannelRetry = 0;
         } catch (Throwable t) {
             errorChannelRegistered = false;
-            logWarn("Error channel register failed: " + t);
+            logError("错误通道注册失败\n  " + t);
             
             if (context != null && errorChannelRetry < ERROR_CHANNEL_RETRY_MAX) {
                 errorChannelRetry++;
@@ -628,7 +631,7 @@ public class FrameworkHooker {
 
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
             FunctionFactoryKt.toast(context, "AppErrorNotify has crashed, please see the log in console");
-            logError("AppErrorNotify has crashed itself, please see the Android Runtime Exception in console");
+            logError("AppErrorNotify 自身崩溃\n  详见控制台 Android Runtime Exception");
         } else if (!ConfigData.isEnableAppConfigTemplate()) {
             
             sendCrashNotification(context, d, appName, errorTitle);
@@ -745,7 +748,7 @@ public class FrameworkHooker {
             
             manager.notify(d.pid(), builder.build());
         } catch (Throwable t) {
-            logWarn("Send crash notification failed: " + t);
+            logError("发送崩溃通知失败\n  " + t);
         }
     }
 
@@ -776,11 +779,19 @@ public class FrameworkHooker {
         AppErrorsRecordData.add(AppErrorsInfoBean.clone(context, d.pid(), d.userId(),
                 appInfo != null ? appInfo.packageName : null, info));
         
+        
         String pkg = d.packageName();
         String crashKind = d.isRepeatingCrash() ? "keeps stopping" : "has stopped";
-        String procPart = !pkg.equals(d.processName()) ? " --process \"" + d.processName() + "\"" : "";
-        String userPart = d.userId() != 0 ? " --user " + d.userId() : "";
-        logInfo("Crash: \"" + pkg + "\" " + crashKind + procPart + userPart + " --pid " + d.pid());
+        StringBuilder sb = new StringBuilder();
+        sb.append("崩溃报告: \"").append(pkg).append("\" ").append(crashKind);
+        sb.append("\n  pid:      ").append(d.pid());
+        if (!pkg.equals(d.processName())) {
+            sb.append("\n  process:  \"").append(d.processName()).append("\"");
+        }
+        if (d.userId() != 0) {
+            sb.append("\n  user:     ").append(d.userId());
+        }
+        logInfo(sb.toString());
         
         if (ConfigData.isEnableDebug()) {
             String exClass = info != null ? info.exceptionClassName : null;
@@ -814,7 +825,7 @@ public class FrameworkHooker {
             onHook();
         } catch (Throwable t) {
             
-            logError("FrameworkHooker.onHook 整体异常，部分 hook 可能未注册: " + t, t);
+            logError("hook 注册整体异常，部分 hook 可能未注册\n  " + t, t);
             printHookSummary();
         }
     }
@@ -912,7 +923,7 @@ public class FrameworkHooker {
                     
                     Object proc = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                     if (proc == null) {
-                        logWarn("Received but got null ProcessRecord (Show UI failed)");
+                        logError("Received but got null ProcessRecord (Show UI failed)");
                         return result;
                     }
                     
@@ -956,7 +967,7 @@ public class FrameworkHooker {
                 
                 Object proc = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                 if (proc == null) {
-                    logWarn("Received but got null ProcessRecord");
+                    logError("Received but got null ProcessRecord");
                     return result;
                 }
                 

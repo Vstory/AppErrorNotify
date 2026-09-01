@@ -85,7 +85,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
     private boolean initUi(Intent intent) {
         AppErrorsInfoBean parsedInfo = null;
         try {
-            Object extra = intent != null ? intent.getSerializableExtra(EXTRA_APP_ERRORS_INFO) : null;
+            Object extra = intent != null ? FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_APP_ERRORS_INFO) : null;
             if (extra instanceof AppErrorsInfoBean) parsedInfo = (AppErrorsInfoBean) extra;
         } catch (Exception ignored) {
         }
@@ -116,8 +116,8 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         }
         binding.appInfoItem.setOnClickListener(v -> FunctionFactoryKt.openSelfSetting(this, appErrorsInfo.packageName));
         binding.printIcon.setOnClickListener(v -> {
-            Log.e("AppErrorsTracking", appErrorsInfo.stackTrace);
-            ModuleLogger.log("E", "AppErrorsTracking", appErrorsInfo.stackTrace, null);
+            Log.e("AppErrorNotify", appErrorsInfo.stackTrace);
+            ModuleLogger.log("E", "AppErrorNotify", appErrorsInfo.stackTrace, null);
             FunctionFactoryKt.toast(this, LocaleFactoryKt.getLocale().getPrintToLogcatSuccess());
         });
         binding.copyIcon.setOnClickListener(v -> {

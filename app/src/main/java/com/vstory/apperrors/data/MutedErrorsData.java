@@ -10,6 +10,7 @@ import android.os.Build;
 import android.util.Log;
 
 import com.vstory.apperrors.bean.MutedErrorsAppBean;
+import com.vstory.apperrors.utils.factory.FunctionFactoryKt;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -185,9 +186,11 @@ public class MutedErrorsData {
                         ctx.unregisterReceiver(this);
                     } catch (Throwable ignored) {
                     }
-                    Object extra = intent != null ? intent.getSerializableExtra(EXTRA_MUTED) : null;
-                    if (extra instanceof ArrayList) {
-                        ArrayList<?> raw = (ArrayList<?>) extra;
+                    Object extra = intent != null ? FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_MUTED) : null;
+                    
+                    
+                    if (extra instanceof java.util.List) {
+                        java.util.List<?> raw = (java.util.List<?>) extra;
                         mutedErrorsIfUnlockApps = new HashSet<>();
                         mutedErrorsIfRestartApps = new HashSet<>();
                         for (Object o : raw) {

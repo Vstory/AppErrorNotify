@@ -60,10 +60,10 @@ public class HookEntry extends XposedModule {
                     log(Log.INFO, TAG, "AppErrorsRecordData initialized at system server startup, folder=" + AppErrorsRecordData.getFolderPathForLog());
                 }
             } catch (Throwable t) {
-                log(Log.WARN, TAG, "AppErrorsRecordData early init skipped: " + t, t);
+                log(Log.ERROR, TAG, "异常记录数据早期初始化跳过\n  " + t, t);
             }
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "onSystemServerStarting 异常: " + t, t);
+            log(Log.ERROR, TAG, "onSystemServerStarting 异常\n  " + t, t);
         }
     }
 
@@ -74,6 +74,9 @@ public class HookEntry extends XposedModule {
 
     @Override
     public void onHotReloaded(HotReloadedParam param) {
+        
+        
+        instance = this;
         log(Log.INFO, TAG, "hot reloaded, hooks reinstalled");
         
         
@@ -81,7 +84,7 @@ public class HookEntry extends XposedModule {
             ConfigData.init(getRemotePreferences(ConfigData.PREFS_GROUP));
             MutedErrorsData.init(getRemotePreferences(MutedErrorsData.PREFS_GROUP));
         } catch (Throwable t) {
-            log(Log.WARN, TAG, "onHotReloaded rebind prefs failed: " + t, t);
+            log(Log.ERROR, TAG, "onHotReloaded 配置绑定失败\n  " + t, t);
         }
         ClassLoader cl = null;
         
@@ -102,7 +105,7 @@ public class HookEntry extends XposedModule {
         try {
             FrameworkHooker.install(this, cl);
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "onHotReloaded 重装 hook 异常: " + t, t);
+            log(Log.ERROR, TAG, "onHotReloaded 重装 hook 异常\n  " + t, t);
         }
         
         
@@ -114,7 +117,7 @@ public class HookEntry extends XposedModule {
                 AppErrorsRecordData.init(sysCtx);
             }
         } catch (Throwable t) {
-            log(Log.WARN, TAG, "HotReloaded state restore skipped: " + t, t);
+            log(Log.ERROR, TAG, "HotReloaded 状态恢复跳过\n  " + t, t);
         }
     }
 }

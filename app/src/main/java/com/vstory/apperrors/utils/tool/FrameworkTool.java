@@ -95,7 +95,7 @@ public class FrameworkTool {
                 list.add(bean);
             }
         } else {
-            ModuleLogger.log("W", "AppErrorsTracking", "Fetched installed packages but got empty list", null);
+            ModuleLogger.log("E", "AppErrorNotify", "Fetched installed packages but got empty list", null);
         }
         result.accept(list);
     }
