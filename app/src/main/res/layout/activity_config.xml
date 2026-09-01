@@ -90,6 +90,20 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/config_template_tip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="15dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginRight="15dp"
+        android:layout_marginBottom="2dp"
+        android:alpha="0.6"
+        android:lineSpacingExtra="6dp"
+        android:text="@string/apps_config_template_tip"
+        android:textColor="@color/colorTextDark"
+        android:textSize="12sp" />
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"

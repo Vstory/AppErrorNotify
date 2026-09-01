@@ -77,8 +77,8 @@
     <string name="function_mgr">Function Management</string>
     <string name="only_show_errors_in_front">Show errors only foreground apps</string>
     <string name="only_show_errors_in_main_process">Show errors only main process apps</string>
-    <string name="enable_apps_config_template">Enable apps config template</string>
     <string name="mgr_apps_config_template">Management Apps Config Template</string>
+    <string name="mgr_apps_config_template_tip">Configure per-app error display behavior individually</string>
     <string name="view_errors_record">View Apps Errors Record</string>
     <string name="view_muted_errors_apps">View Muted Errors Apps</string>
     <string name="only_show_errors_in_front_tip">After enabling, the error information will only be displayed when the abnormal apps is in the foreground (in use). Although the abnormal background application will not showing the error information, they will be recorded in the errors history.</string>

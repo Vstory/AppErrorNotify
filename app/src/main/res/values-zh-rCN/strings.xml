@@ -76,8 +76,8 @@
     <string name="function_mgr">功能管理</string>
     <string name="only_show_errors_in_front">仅显示前台应用发生的异常</string>
     <string name="only_show_errors_in_main_process">仅显示应用主进程发生的异常</string>
-    <string name="enable_apps_config_template">启用应用配置模板</string>
     <string name="mgr_apps_config_template">管理应用配置模板</string>
+    <string name="mgr_apps_config_template_tip">单独配置每个应用发生异常时的显示方式</string>
     <string name="view_errors_record">查看异常历史记录</string>
     <string name="view_muted_errors_apps">查看已忽略异常的应用</string>
     <string name="only_show_errors_in_front_tip">启用后，只有应用处于前台（正在使用中）时才会显示其发生的异常，发生异常的后台应用虽然不会有任何提示信息，但是它们都会被记录到异常历史记录中。</string>
