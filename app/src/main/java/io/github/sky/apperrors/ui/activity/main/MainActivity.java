@@ -52,7 +52,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
     protected void onCreate() {
         checkingTopComponentName();
         easterEggPrefs = getSharedPreferences("easter_egg", MODE_PRIVATE);
-        /** 顶栏折叠：标题由 CollapsingToolbarLayout 管理（app:title 缩放固定），不依赖 ActionBar */
+        /** 顶栏折叠：标题设在 CollapsingToolbarLayout（app:title），固定顶栏，图标随滚动滚出隐藏 */
         binding.toolbarLayout.setTitle(getString(R.string.app_name));
         /** 设置 CI 自动构建标识 */
         if (ModuleVersion.isCiMode()) {
