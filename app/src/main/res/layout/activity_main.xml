@@ -343,19 +343,55 @@
                         android:textColor="@color/colorTextGray"
                         android:textSize="15sp" />
 
-                    <TextView
+                    <!-- 管理应用配置模板：改为导航行样式（与功能管理卡/通知忽略行一致） -->
+                    <LinearLayout
                         android:id="@+id/mgr_apps_configs_template_button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:background="@drawable/bg_button_round"
-                        android:gravity="center"
-                        android:padding="10dp"
-                        android:singleLine="true"
-                        android:text="@string/mgr_apps_config_template"
-                        android:textColor="@color/colorLinkBlue"
-                        android:textSize="14sp"
-                        android:visibility="gone" />
+                        android:layout_marginBottom="4dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="12dp"
+                        android:visibility="gone">
+
+                        <ImageView
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="16dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:contentDescription="@string/mgr_apps_config_template"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_global"
+                            android:tint="@color/colorFunctionIcon" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:singleLine="true"
+                                android:text="@string/mgr_apps_config_template"
+                                android:textColor="@color/colorTextGray"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:alpha="0.4"
+                            android:src="@drawable/ic_chevron_right"
+                            android:tint="@color/colorTextGray" />
+                    </LinearLayout>
 
                     <TextView
                         android:layout_width="match_parent"
