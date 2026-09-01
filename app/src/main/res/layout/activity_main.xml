@@ -662,6 +662,73 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- 调试日志卡：点击进入「调试设置」独立页面（放在关于本项目上方，与功能管理卡样式协调） -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.AppErrors.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="15dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginRight="15dp">
+
+                <LinearLayout
+                    android:id="@+id/debug_setting_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="12dp">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginEnd="16dp"
+                        android:background="@drawable/bg_icon_tint"
+                        android:contentDescription="@string/debug_logs"
+                        android:padding="9dp"
+                        android:src="@drawable/ic_baseline_bug_report"
+                        android:tint="@color/colorFunctionIcon" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:text="@string/debug_logs"
+                            android:textColor="@color/colorTextGray"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:alpha="0.6"
+                            android:textSize="12sp"
+                            android:text="@string/debug_setting_subtitle"
+                            android:textColor="@color/colorTextDark" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:alpha="0.4"
+                        android:src="@drawable/ic_chevron_right"
+                        android:tint="@color/colorTextGray" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- 关于本项目卡 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/payment_following_zh_cn_item"

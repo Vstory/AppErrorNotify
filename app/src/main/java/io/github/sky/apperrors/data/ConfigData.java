@@ -34,6 +34,7 @@ public class ConfigData {
     private static final String KEY_SHARE_WITH_FILE = "_share_with_file";
     private static final String KEY_GLOBAL_SHOW_ERRORS_TYPE = "_global_show_errors_type";
     private static final String KEY_MUTE_IGNORE_UNTIL_REBOOT = "_mute_ignore_until_reboot";
+    private static final String KEY_ENABLE_DEBUG = "_enable_debug";
 
     /** 远程偏好（system_server / service 连接后的 UI） */
     private static SharedPreferences remotePrefs;
@@ -189,6 +190,14 @@ public class ConfigData {
     }
     public static void setMuteIgnoreUntilReboot(boolean value) {
         putBoolean(KEY_MUTE_IGNORE_UNTIL_REBOOT, value);
+    }
+
+    /** 调试日志开关（默认关闭）：关闭时 system_server 只输出「崩溃记录」1条日志，其余通道回传日志不打 */
+    public static boolean isEnableDebug() {
+        return getBoolean(KEY_ENABLE_DEBUG, false);
+    }
+    public static void setEnableDebug(boolean value) {
+        putBoolean(KEY_ENABLE_DEBUG, value);
     }
 
     private ConfigData() {}

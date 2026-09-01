@@ -68,7 +68,7 @@ public class AppErrorsRecordData {
     private static void log(String msg, Throwable e) {
         // ⚠️ 不能用 HookEntry.log()：HookEntry 只在 system_server 注入时存在，
         //    UI 进程加载 HookEntry 类会 NoClassDefFoundError → 模块自身崩溃（真机实证）
-        android.util.Log.i("AppErrorsTracking", msg != null ? msg : "", e);
+        android.util.Log.i("AppErrorNotify", msg != null ? msg : "", e);
     }
 
     // ===== 随机串 / 目录名解析 =====
@@ -297,6 +297,13 @@ public class AppErrorsRecordData {
         }
     }
 
+    /** 读取磁盘上的最新记录（权威数据源）
+     *  ⚠️ 供 system_server 广播回传（GET_ERRORS）用：热重载会导致内存 allData 分裂（新旧 class 各一份），
+     *     读磁盘文件可避开分裂的内存态，保证任何 receiver 都能拿到最新崩溃记录 */
+    public static java.util.List<AppErrorsInfoBean> latestFromFiles() {
+        return new java.util.ArrayList<>(readAllDataFromFiles());
+    }
+
     /** system_server 初始化（首次 hook 拿到 Context 后；动态生成随机目录并持久化） */
     public static void init(Context context) {
         AppErrorsRecordData.context = context;
@@ -363,6 +370,8 @@ public class AppErrorsRecordData {
     /**
      * UI 进程读取：经广播从 system_server 拉取记录
      * （普通 uid 无 /data/misc 权限不能直读文件；原版用 dataChannel 广播中转，这里用标准广播等价实现）
+     *  ⚠️ 热重载可能导致 system_server 有多个旧/新 receiver 并存、各自回传一份结果（有空的也有非空的）。
+     *     因此这里「收到非空结果才立即采用；收到空结果继续等一小段非空回传，超时才用空结果兜底」。
      * @param context UI Context
      * @param callback 收到记录后的回调（可能在非主线程）
      */
@@ -371,23 +380,48 @@ public class AppErrorsRecordData {
         try {
             android.content.IntentFilter filter = new android.content.IntentFilter();
             filter.addAction("io.github.sky.apperrors.action.ERRORS_RESULT");
-            // 动态注册临时 receiver，收到结果后解绑
+            final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+            final boolean[] finished = {false};       // 是否已最终采用并回调
+            final boolean[] gotEmpty = {false};       // 是否收到过空结果
+            final android.content.BroadcastReceiver[] holder = new android.content.BroadcastReceiver[1];
+            // 动态注册临时 receiver；收到「非空」结果立即采用 + 解绑；收到空结果时再等一小段兜底
             android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
                 @Override
                 public void onReceive(android.content.Context ctx, android.content.Intent intent) {
-                    try {
-                        ctx.unregisterReceiver(this);
-                    } catch (Throwable ignored) {
+                    if (intent == null) return;
+                    Object extra = intent.getSerializableExtra("errors");
+                    // ⚠️ 必须用 List 判断：system_server 回传的是 CopyOnWriteArrayList，
+                    //    它不是 java.util.ArrayList 的子类 → 用 instanceof ArrayList 会误判为 false，
+                    //    导致历史列表页永远拉不到数据（单条详情直传 bean 不受影响）。
+                    if (!(extra instanceof java.util.List)) return;   // 非 List 直接忽略
+                    java.util.List<?> raw = (java.util.List<?>) extra;
+                    // 过滤出有效的 AppErrorsInfoBean
+                    final java.util.List<AppErrorsInfoBean> accepted = new java.util.ArrayList<>();
+                    for (Object o : raw) if (o instanceof AppErrorsInfoBean) accepted.add((AppErrorsInfoBean) o);
+                    // 非空 → 立即采用（覆盖之前任何空结果）
+                    if (!accepted.isEmpty()) {
+                        allData = new CopyOnWriteArrayList<>(accepted);
+                        if (!finished[0]) {
+                            finished[0] = true;
+                            try { ctx.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                            if (resultReceiver != null) resultReceiver.onReceive(ctx, intent);
+                        }
+                        return;
                     }
-                    Object extra = intent != null ? intent.getSerializableExtra("errors") : null;
-                    if (extra instanceof java.util.ArrayList) {
-                        java.util.ArrayList<?> raw = (java.util.ArrayList<?>) extra;
-                        allData = new CopyOnWriteArrayList<>();
-                        for (Object o : raw) if (o instanceof AppErrorsInfoBean) allData.add((AppErrorsInfoBean) o);
-                    }
-                    if (resultReceiver != null) resultReceiver.onReceive(ctx, intent);
+                    // 空结果：先记下来，等一小段（给非空 receiver 机会），超时才用空结果兜底
+                    gotEmpty[0] = true;
+                    handler.postDelayed(() -> {
+                        if (!finished[0]) {
+                            finished[0] = true;
+                            try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                            // 超时兜底：若有任何空结果回调，把 allData 置空
+                            allData = new CopyOnWriteArrayList<>();
+                            if (resultReceiver != null) resultReceiver.onReceive(context, null);
+                        }
+                    }, 600L);   // 600ms 等待窗口：期间若收到非空则覆盖
                 }
             };
+            holder[0] = receiver;
             if (android.os.Build.VERSION.SDK_INT >= 33)
                 context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
             else

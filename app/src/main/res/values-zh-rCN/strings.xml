@@ -119,6 +119,9 @@
     <string name="user_id">用户 %1$s</string>
     <string name="unable_get_app_errors_record_tip">现在无法获取异常记录，你可能需要稍后在异常历史记录中查看，若问题持续出现，可能是你的系统关闭了错误报告收集功能。</string>
     <string name="debug_logs">调试日志</string>
+    <string name="debug_setting_title">调试设置</string>
+    <string name="debug_setting_subtitle">控制输出哪些调试日志</string>
+    <string name="debug_switch_tip">关闭时，应用崩溃时仅输出一条崩溃记录日志。开启后，崩溃时还会额外输出崩溃详情（堆栈/异常类），并输出通道数据回传、配置模板等带 [DEBUG] 标签的调试日志。</string>
     <string name="refresh">刷新</string>
     <string name="copy">复制</string>
     <string name="info_card_title">信息</string>

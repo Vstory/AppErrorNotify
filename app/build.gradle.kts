@@ -20,8 +20,8 @@ android {
         applicationId = "io.github.sky.apperrors"
         minSdk = 26
         targetSdk = 37
-        versionName = "1.13"
-        versionCode = 69
+        versionName = "1.14"
+        versionCode = 70
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

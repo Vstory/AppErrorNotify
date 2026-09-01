@@ -43,7 +43,7 @@ public class MutedErrorsData {
     private static void log(String msg) {
         // ⚠️ 不能用 HookEntry.log()：HookEntry 只在 system_server 注入时存在，
         //    UI 进程加载 HookEntry 类会 NoClassDefFoundError → 模块自身崩溃
-        android.util.Log.i("AppErrorsTracking", msg != null ? msg : "");
+        android.util.Log.i("AppErrorNotify", msg != null ? msg : "");
     }
 
     /** system_server 初始化（内存模式——原版就只存 system_server 内存，不持久化！

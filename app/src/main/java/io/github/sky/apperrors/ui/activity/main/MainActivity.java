@@ -22,6 +22,7 @@ import io.github.sky.apperrors.databinding.ActivityMainBinding;
 import io.github.sky.apperrors.locale.LocaleFactoryKt;
 import io.github.sky.apperrors.ui.activity.base.BaseActivity;
 import io.github.sky.apperrors.ui.activity.debug.LoggerActivity;
+import io.github.sky.apperrors.ui.activity.debug.DebugActivity;
 import io.github.sky.apperrors.ui.activity.errors.AppErrorsMutedActivity;
 import io.github.sky.apperrors.ui.activity.errors.AppErrorsRecordActivity;
 import io.github.sky.apperrors.utils.factory.DialogBuilder;
@@ -92,6 +93,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         /** 功能管理按钮点击事件 */
         binding.viewErrorsRecordButton.setOnClickListener(v -> whenActivated(() -> navigateTo(AppErrorsRecordActivity.class)));
         binding.viewMutedErrorsAppsButton.setOnClickListener(v -> whenActivated(() -> navigateTo(AppErrorsMutedActivity.class)));
+        /** 调试日志设置入口：独立页面 */
+        binding.debugSettingButton.setOnClickListener(v -> whenActivated(() -> navigateTo(DebugActivity.class)));
         /** 通知「忽略」按钮行为：直到重启/直到解锁 */
         refreshMuteIgnoreBehaviorText();
         binding.muteIgnoreBehaviorRow.setOnClickListener(v -> whenActivated(() -> showMuteIgnoreBehaviorDialog()));

@@ -59,7 +59,7 @@ import io.github.libxposed.api.XposedModule;
 /** 系统框架 hook 实体 */
 public class FrameworkHooker {
 
-    private static final String TAG = "AppErrorsTracking";
+    private static final String TAG = "AppErrorNotify";
 
     /** 模块实例（HookEntry.onSystemServerStarting 注入） */
     private static XposedModule module;
@@ -98,6 +98,11 @@ public class FrameworkHooker {
     private static void logError(Object msg) { log(Log.ERROR, msg, null); }
     private static void logInfo(Object msg) { log(Log.INFO, msg, null); }
     private static void logWarn(Object msg) { log(Log.WARN, msg, null); }
+    /** 调试日志（受「调试日志」开关控制）：关闭时不打印，用于输出通道回传等调试信息 */
+    private static void logDebug(Object msg) {
+        if (!ConfigData.isEnableDebug()) return;
+        log(Log.INFO, "[DEBUG] " + (msg != null ? msg.toString() : ""), null);
+    }
 
     // ===== Java 标准反射工具 =====
 
@@ -355,6 +360,23 @@ public class FrameworkHooker {
     /** 广播通道是否已注册（幂等） */
     private static volatile boolean errorChannelRegistered = false;
 
+    /**
+     * 热重载后由 HookEntry 调用：恢复「广播通道已注册」状态。
+     *  ⚠️ 热重载会用新 ClassLoader 重载本类，导致 errorChannelRegistered 复位为 false；
+     *     而 system_server 里旧 ClassLoader 注册的 broadcast receiver 仍然存在、仍能响应 GET_ERRORS。
+     *     若不恢复该标志，ensureHostContext 首次触发时又会 registerErrorChannel → 重复注册 receiver（真机实证：
+     *     同一 GET_ERRORS 被多个 receiver 各回传一次，出现 sent 0 / sent N 分裂）。
+     *     恢复为 true 后，registerErrorChannel 会直接 return，复用仍在 system_server 里的旧 receiver。
+     */
+    public static void restoreBroadcastChannelRegistered() {
+        errorChannelRegistered = true;
+    }
+
+    /** 广播通道是否已注册（供 HookEntry 判断是否需要重新注册，可选） */
+    public static boolean isBroadcastChannelRegistered() {
+        return errorChannelRegistered;
+    }
+
     /** 通道注册失败重试次数上限 */
     private static final int ERROR_CHANNEL_RETRY_MAX = 20;
 
@@ -376,53 +398,58 @@ public class FrameworkHooker {
                     String action = intent.getAction();
                     try {
                         if (ACTION_GET_ERRORS.equals(action)) {
+                            // ⚠️ 热重载会用新 ClassLoader 重载模块类，导致内存 allData 分裂（旧/新各一份），
+                            //    若读内存态会随机出现 sent 0（空）→ UI 列表拉不到数据。
+                            //    改用磁盘权威数据（文件永远是最新崩溃记录），所有 receiver（新旧 class）都读到同一份。
+                            java.util.List<io.github.sky.apperrors.bean.AppErrorsInfoBean> latest =
+                                    AppErrorsRecordData.latestFromFiles();
                             Intent result = new Intent(ACTION_ERRORS_RESULT);
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID); // 只发给模块 UI
-                            result.putExtra(EXTRA_ERRORS, AppErrorsRecordData.allData);
+                            result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(latest));
                             ctx.sendBroadcast(result);
-                            logInfo("Error channel: sent " + AppErrorsRecordData.allData.size() + " records to UI");
+                            logDebug("Error channel: sent " + latest.size() + " records to UI");
                         } else if (ACTION_CLEAR_ERRORS.equals(action)) {
                             AppErrorsRecordData.clearAll();
-                            logInfo("Error channel: cleared all records from UI");
+                            logDebug("Error channel: cleared all records from UI");
                         } else if (ACTION_REMOVE_ERROR.equals(action)) {
                             Object bean = intent.getSerializableExtra(EXTRA_BEAN);
                             if (bean instanceof io.github.sky.apperrors.bean.AppErrorsInfoBean)
                                 AppErrorsRecordData.remove((io.github.sky.apperrors.bean.AppErrorsInfoBean) bean);
-                            logInfo("Error channel: removed one record from UI");
+                            logDebug("Error channel: removed one record from UI");
                         } else if (ACTION_GET_LOGS.equals(action)) {
                             // 调试日志：回传 system_server 内存日志给 UI
                             Intent result = new Intent(ACTION_LOGS_RESULT);
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
                             result.putExtra(EXTRA_LOGS, new java.util.ArrayList<>(ModuleLogger.allData()));
                             ctx.sendBroadcast(result);
-                            logInfo("Log channel: sent " + ModuleLogger.allData().size() + " logs to UI");
+                            logDebug("Log channel: sent " + ModuleLogger.allData().size() + " logs to UI");
                         } else if (ACTION_GET_MUTED.equals(action)) {
                             // 忽略列表：回传 system_server 内存忽略列表给 UI（system_server 是权威）
                             Intent result = new Intent(ACTION_MUTED_RESULT);
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
                             result.putExtra(EXTRA_MUTED, MutedErrorsData.fetchMutedErrorsAppsData());
                             ctx.sendBroadcast(result);
-                            logInfo("Mute channel: sent " + MutedErrorsData.fetchMutedErrorsAppsData().size() + " muted apps to UI");
+                            logDebug("Mute channel: sent " + MutedErrorsData.fetchMutedErrorsAppsData().size() + " muted apps to UI");
                         } else if (ACTION_MUTE_ERROR.equals(action)) {
                             String pkg = intent.getStringExtra(EXTRA_PACKAGE);
                             if (pkg != null && !pkg.isEmpty()) {
                                 // 通知「忽略该应用」按钮行为：根据用户配置 直到重启/直到解锁
                                 if (ConfigData.isMuteIgnoreUntilReboot()) {
                                     MutedErrorsData.mutedErrorsIfRestart(pkg);
-                                    logInfo("Mute channel: muted \"" + pkg + "\" until restart");
+                                    logDebug("Mute channel: muted \"" + pkg + "\" until restart");
                                 } else {
                                     MutedErrorsData.mutedErrorsIfUnlock(pkg);
-                                    logInfo("Mute channel: muted \"" + pkg + "\" until unlock");
+                                    logDebug("Mute channel: muted \"" + pkg + "\" until unlock");
                                 }
                             }
                         } else if (ACTION_UNMUTE_ERROR.equals(action)) {
                             Object bean = intent.getSerializableExtra(EXTRA_BEAN);
                             if (bean instanceof io.github.sky.apperrors.bean.MutedErrorsAppBean)
                                 MutedErrorsData.unmuteErrorsApp((io.github.sky.apperrors.bean.MutedErrorsAppBean) bean);
-                            logInfo("Mute channel: unmuted one app");
+                            logDebug("Mute channel: unmuted one app");
                         } else if (ACTION_UNMUTE_ALL.equals(action)) {
                             MutedErrorsData.unmuteAllErrorsApps();
-                            logInfo("Mute channel: unmuted all apps");
+                            logDebug("Mute channel: unmuted all apps");
                         } else if (AppErrorsConfigData.ACTION_CONFIG_CHANGED.equals(action)) {
                             // 配置模板变更：UI 保存后立即刷新内存 Set（原版靠 onRefreshFrameworkPrefsData 回调，
                             //  libxposed 无此回调 → 用广播等价；崩溃时读时刷新仍兜底）
@@ -434,7 +461,7 @@ public class FrameworkHooker {
                                     return r != null ? r : null;
                                 });
                             }
-                            logInfo("Config channel: refreshed app config template from UI");
+                            logDebug("Config channel: refreshed app config template from UI");
                         }
                     } catch (Throwable t) {
                         logWarn("Error channel handle failed: " + t);
@@ -455,7 +482,7 @@ public class FrameworkHooker {
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             else
                 context.registerReceiver(receiver, filter);
-            logInfo("Error channel registered");
+            logDebug("Error channel registered");
             errorChannelRetry = 0;
         } catch (Throwable t) {
             errorChannelRegistered = false;
@@ -481,14 +508,14 @@ public class FrameworkHooker {
                 String action = intent.getAction();
                 if (Intent.ACTION_USER_PRESENT.equals(action)) {
                     MutedErrorsData.clearIfUnlock();
-                    logInfo("User present, cleared muted errors until unlocks");
+                    logDebug("User present, cleared muted errors until unlocks");
                 } else if (Intent.ACTION_LOCALE_CHANGED.equals(action)) {
                     if (LocaleFactoryKt.isLocaleInitialized()) {
                         LocaleFactoryKt.attachLocale(() -> {
                             android.content.res.Resources r = moduleResources();
                             return r != null ? r : (ctx != null ? ctx.getResources() : null);
                         });
-                        logInfo("Locale changed, refreshed module locale");
+                        logDebug("Locale changed, refreshed module locale");
                     }
                 }
             }
@@ -621,8 +648,8 @@ public class FrameworkHooker {
         if (!d.isMainProcess() && ConfigData.isEnableOnlyShowErrorsInMain()) return;
 
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
-            FunctionFactoryKt.toast(context, "AppErrorsTracking has crashed, please see the log in console");
-            logError("AppErrorsTracking has crashed itself, please see the Android Runtime Exception in console");
+            FunctionFactoryKt.toast(context, "AppErrorNotify has crashed, please see the log in console");
+            logError("AppErrorNotify has crashed itself, please see the Android Runtime Exception in console");
         } else if (!ConfigData.isEnableAppConfigTemplate()) {
             // 模板未启用（默认）：统一发送系统通知
             sendCrashNotification(context, d, appName, errorTitle);
@@ -632,7 +659,7 @@ public class FrameworkHooker {
             //    4 次 getStringSet IPC 开销在崩溃频率下可忽略
             AppErrorsConfigData.refresh();
             AppErrorsConfigType type = resolveAppShowType(d.packageName());
-            logInfo("App config template: \"" + d.packageName() + "\" -> " + type.name());
+            logDebug("App config template: \"" + d.packageName() + "\" -> " + type.name());
             switch (type) {
                 case TOAST:
                     FunctionFactoryKt.toast(context, errorTitle);
@@ -662,16 +689,6 @@ public class FrameworkHooker {
                             sendCrashNotification(context, d, appName, errorTitle);
                     }
             }
-        }
-
-        /** 打印错误日志 */
-        if (d.isActualApp()) {
-            String msg = "Application \"" + d.packageName() + "\" " + (d.isRepeatingCrash() ? "keeps stopping" : "has stopped")
-                    + (!d.packageName().equals(d.processName()) ? " --process \"" + d.processName() + "\"" : "")
-                    + (d.userId() != 0 ? " --user " + d.userId() : "") + " --pid " + d.pid();
-            logError(msg);
-        } else {
-            logError("Process \"" + d.processName() + "\" " + (d.isRepeatingCrash() ? "keeps stopping" : "has stopped") + " --pid " + d.pid());
         }
     }
 
@@ -753,7 +770,6 @@ public class FrameworkHooker {
                     .setDefaults(Notification.DEFAULT_ALL);
             // notificationId 用 pid：同一进程反复崩溃覆盖同一条通知，不堆积
             manager.notify(d.pid(), builder.build());
-            logInfo("Crash notification sent: " + errorTitle + " (pid " + d.pid() + ")");
         } catch (Throwable t) {
             logWarn("Send crash notification failed: " + t);
         }
@@ -780,12 +796,32 @@ public class FrameworkHooker {
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
             // 模块自身崩溃：输出完整堆栈（UI 进程崩溃时 system_server 只能看到事件，这里补堆栈）
             if (info != null) {
-                logError("AppErrorsTracking crashed itself, stackTrace:\n" + info.stackTrace, null);
+                logError("AppErrorNotify crashed itself, stackTrace:\n" + info.stackTrace, null);
             }
         }
         AppErrorsRecordData.add(AppErrorsInfoBean.clone(context, d.pid(), d.userId(),
                 appInfo != null ? appInfo.packageName : null, info));
-        logInfo("Received crash application data" + (d.userId() != 0 ? " --user " + d.userId() : "") + " --pid " + d.pid());
+        // 整合为一条崩溃日志：涵盖 包名/进程/是否重复/pid/user（消除此前三条重复日志刷屏）
+        String pkg = d.packageName();
+        String crashKind = d.isRepeatingCrash() ? "keeps stopping" : "has stopped";
+        String procPart = !pkg.equals(d.processName()) ? " --process \"" + d.processName() + "\"" : "";
+        String userPart = d.userId() != 0 ? " --user " + d.userId() : "";
+        logInfo("Crash: \"" + pkg + "\" " + crashKind + procPart + userPart + " --pid " + d.pid());
+        // 调试开关开启时：附加崩溃详情（堆栈/异常类），让 debug 模式与默认模式有可见差异
+        if (ConfigData.isEnableDebug()) {
+            String exClass = info != null ? info.exceptionClassName : null;
+            String exMsg = info != null ? info.exceptionMessage : null;
+            StringBuilder details = new StringBuilder();
+            details.append("Crash details: process=\"").append(d.processName()).append('"')
+                   .append(" user=").append(d.userId())
+                   .append(" repeating=").append(d.isRepeatingCrash());
+            if (exClass != null) details.append(" exception=").append(exClass);
+            if (exMsg != null && !exMsg.trim().isEmpty()) details.append(" msg=\"").append(exMsg).append('"');
+            logDebug(details.toString());
+            if (info != null && info.stackTrace != null && !info.stackTrace.isEmpty()) {
+                logDebug("Crash stackTrace:\n" + info.stackTrace);
+            }
+        }
     }
 
     /** 由 HookEntry 注入模块实例并注册 hook（热重载重装时也会调用，先清空旧句柄列表） */
@@ -827,14 +863,15 @@ public class FrameworkHooker {
         }
     }
 
-    /** 一次性输出全部 hook 注册结果（避免刷屏） */
+    /** 一次性输出全部 hook 注册结果（避免刷屏）：全成功/仅跳过只打摘要，有失败才打印明细 */
     private static void printHookSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append("Hook 注册完成：成功 ").append(hookOkCount)
           .append(" / 跳过 ").append(hookSkipCount)
-          .append(" / 失败 ").append(hookFailCount).append(" 条：");
-        if (hookOkCount + hookSkipCount + hookFailCount > 0) {
-            sb.append("\n");
+          .append(" / 失败 ").append(hookFailCount).append(" 条");
+        // 仅当存在失败项时才附带明细（全成功/仅跳过时保持一行，避免热重载/启动刷屏）
+        if (hookFailCount > 0) {
+            sb.append("：\n");
             for (String line : hookSummary) sb.append(line).append("\n");
         }
         logInfo(sb.toString().trim());

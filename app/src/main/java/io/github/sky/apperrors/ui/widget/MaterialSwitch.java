@@ -18,12 +18,24 @@ import top.defaults.drawabletoolbox.DrawableBuilder;
 /** Material 风格开关 */
 public class MaterialSwitch extends SwitchCompat {
 
+    /** 亮色主题的开启态绿色（与模块图标 theme 绿 colorFunctionIcon 一致，开启态醒目分界） */
+    private static final int COLOR_ON_LIGHT = 0xFF1E7A5C;
+    /** 暗色主题的开启态亮绿色（暗背景下更醒目） */
+    private static final int COLOR_ON_DARK = 0xFF3DDC97;
+    /** 亮色主题的关闭态轨道浅灰 */
+    private static final int COLOR_OFF_LIGHT = 0xFFCCCCCC;
+    /** 暗色主题的关闭态轨道深灰 */
+    private static final int COLOR_OFF_DARK = 0xFF7C7C7C;
+
     public MaterialSwitch(Context context, AttributeSet attrs) {
         super(context, attrs);
+        boolean dark = FunctionFactoryKt.isSystemInDarkMode(context);
+        int onColor = dark ? COLOR_ON_DARK : COLOR_ON_LIGHT;
+        int offColor = dark ? COLOR_OFF_DARK : COLOR_OFF_LIGHT;
         setTrackDrawable(new DrawableBuilder()
                 .rectangle()
                 .rounded()
-                .solidColor(0xFF656565)
+                .solidColor(offColor)
                 .height(FunctionFactoryKt.dp(20, context))
                 .cornerRadius(FunctionFactoryKt.dp(15, context))
                 .build());
@@ -36,8 +48,8 @@ public class MaterialSwitch extends SwitchCompat {
                 .strokeWidth(FunctionFactoryKt.dp(8, context))
                 .strokeColor(Color.TRANSPARENT)
                 .build());
-        int thumbColor = FunctionFactoryKt.isSystemInDarkMode(context) ? 0xFF7C7C7C : 0xFFCCCCCC;
-        setTrackTintList(toColors(0xFF656565, thumbColor, thumbColor));
+        // 开启态(selected/state_checked)=主题绿，关闭态=浅灰/深灰 → 开/关分界明显
+        setTrackTintList(toColors(onColor, offColor, offColor));
         setSingleLine(true);
         setEllipsize(TextUtils.TruncateAt.END);
     }

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/colorThemeBackground"
+    android:orientation="vertical"
+    tools:context=".ui.activity.debug.DebugActivity"
+    tools:ignore="ContentDescription,UnusedAttribute">
+
+    <!-- 顶栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center|start"
+        android:paddingLeft="15dp"
+        android:paddingTop="13dp"
+        android:paddingRight="15dp"
+        android:paddingBottom="5dp">
+
+        <androidx.constraintlayout.utils.widget.ImageFilterView
+            android:id="@+id/title_back_icon"
+            style="?android:attr/selectableItemBackgroundBorderless"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="20dp"
+            android:src="@drawable/ic_back"
+            android:tint="@color/colorTextGray"
+            android:tooltipText="@string/back" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="2.5dp"
+            android:layout_weight="1"
+            android:gravity="center|start"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="5dp"
+                android:singleLine="true"
+                android:text="@string/debug_setting_title"
+                android:textColor="@color/colorTextGray"
+                android:textSize="19sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="@string/debug_setting_subtitle"
+                android:textColor="@color/colorTextDark"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 调试日志开关卡 -->
+    <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.AppErrors.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="15dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginRight="15dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="14dp">
+
+            <io.github.sky.apperrors.ui.widget.MaterialSwitch
+                android:id="@+id/enable_debug_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/debug_logs"
+                android:textAllCaps="false"
+                android:textColor="@color/colorTextGray"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:alpha="0.6"
+                android:lineSpacingExtra="6dp"
+                android:text="@string/debug_switch_tip"
+                android:textColor="@color/colorTextDark"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</LinearLayout>
