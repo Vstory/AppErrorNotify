@@ -77,7 +77,7 @@ public class HookEntry extends XposedModule {
 
     @Override
     public void onHotReloaded(HotReloadedParam param) {
-        log(Log.INFO, TAG, "onHotReloaded: 热重载完成，已卸载旧 hook 并重新装载");
+        log(Log.INFO, TAG, "hot reloaded, hooks reinstalled");
         // 热重载会重新加载模块类、重置全部 static 状态 → 重新绑定 RemotePreferences，
         // 否则 ConfigData.remotePrefs=null 且 uiContext 在 system_server 为 null，isEnableDebug() 读不到最新值（开关失效）
         try {
