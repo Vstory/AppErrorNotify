@@ -21,3 +21,6 @@ dev-project/
 release/
 # manager.apk 解包素材（本地参考用，不提交）
 解包/
+
+# Wiki 源文件草稿(独立仓库,不入代码库)
+wiki-source/
