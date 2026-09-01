@@ -65,6 +65,7 @@
 
 本项目为 **GNU AGPL-3.0** 开源协议。
 
+- Copyright (C) 2017 Fankes Studio (qzmmcn@163.com)
 - Copyright (C) 2026 Vstory (Java rework)
 
 完整协议见 [LICENSE](LICENSE)。
