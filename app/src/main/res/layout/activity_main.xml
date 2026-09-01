@@ -23,26 +23,17 @@
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:titleCollapseMode="scale">
 
+            <!-- 展开态内容：右侧图标随滚动滚出隐藏（标题由 CollapsingToolbarLayout 的 app:title 缩放） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center|start"
+                android:gravity="center|end"
                 android:orientation="horizontal"
                 android:paddingStart="20dp"
                 android:paddingTop="14dp"
                 android:paddingBottom="6dp"
-                android:paddingEnd="20dp">
-
-                <TextView
-                    android:id="@+id/main_title"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:fontFamily="sans-serif"
-                    android:text="@string/app_name"
-                    android:textColor="@color/colorTextGray"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
+                android:paddingEnd="20dp"
+                app:layout_collapseMode="parallax">
 
                 <androidx.constraintlayout.utils.widget.ImageFilterView
                     android:id="@+id/title_logger_icon"
@@ -66,6 +57,18 @@
                     android:tint="@color/colorTextGray"
                     android:tooltipText="@string/project_address" />
             </LinearLayout>
+
+            <!-- 折叠后固定的工具栏：标题由 CollapsingToolbarLayout 管理(缩放)，此处只作 pin 支架 -->
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="@color/colorThemeBackground"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:titleTextColor="@color/colorTextGray"
+                app:layout_collapseMode="pin" />
+
         </com.google.android.material.appbar.CollapsingToolbarLayout>
     </com.google.android.material.appbar.AppBarLayout>
 

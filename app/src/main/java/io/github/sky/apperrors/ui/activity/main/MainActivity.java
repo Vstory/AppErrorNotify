@@ -52,17 +52,14 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
     protected void onCreate() {
         checkingTopComponentName();
         easterEggPrefs = getSharedPreferences("easter_egg", MODE_PRIVATE);
+        /** 启用折叠工具栏：标题固定顶栏（pin），大标题+图标随滚动滚出隐藏 */
+        setSupportActionBar(binding.toolbar);
+        if (getSupportActionBar() != null)
+            getSupportActionBar().setTitle(getString(R.string.app_name));
         /** 设置 CI 自动构建标识 */
         if (ModuleVersion.isCiMode()) {
-            binding.mainTitle.setText("CI " + ModuleVersion.GITHUB_COMMIT_ID);
-            binding.mainTitle.setOnClickListener(v -> {
-                DialogBuilder<?> dlg = new DialogBuilder<>(this);
-                dlg.setTitle(LocaleFactoryKt.getLocale().getCiNoticeDialogTitle());
-                dlg.setMsg(LocaleFactoryKt.getLocale().ciNoticeDialogContent(ModuleVersion.GITHUB_COMMIT_ID));
-                dlg.confirmButton(LocaleFactoryKt.getLocale().getGotIt());
-                dlg.noCancelable();
-                dlg.show();
-            });
+            String ciTitle = "CI " + ModuleVersion.GITHUB_COMMIT_ID;
+            if (getSupportActionBar() != null) getSupportActionBar().setTitle(ciTitle);
         }
         binding.mainTextModuleVersion.setText(getString(R.string.module_version_plain, ModuleVersion.INSTANCE.toString()));
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInFrontSwitch,
