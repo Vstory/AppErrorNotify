@@ -96,9 +96,9 @@
     <string name="clear_filters">Clear Filters</string>
     <string name="result_count">%1$s results found</string>
     <string name="loading">Loading</string>
-    <string name="when_errors_how_to_show_tip">You can configure how the system will show you errors when the apps crashes.</string>
-    <string name="show_errors_toast">Show errors Toast</string>
-    <string name="show_nothing">Don\'t show anything</string>
+    <string name="when_errors_how_to_show_tip">Configure how errors are presented when an app crashes.</string>
+    <string name="show_errors_toast">Show a Toast</string>
+    <string name="show_nothing">Silently (show nothing)</string>
     <string name="app_errors_statistics">App Errors Statistics</string>
     <string name="total_errors">Total errors</string>
     <string name="total_apps">Total apps</string>
@@ -109,7 +109,7 @@
     <string name="total_apps_unit">%1$s (including system apps)</string>
     <string name="generating_statistics">Generating statistics</string>
     <string name="module_not_fully_activated_tip">The module is not fully activated and may not be able to load the current settings item. It is recommended to re -start the system and try it out.</string>
-    <string name="show_errors_notify">Show errors notification</string>
+    <string name="show_errors_notify">Post a system notification</string>
     <string name="app_errors_tip">App collapses an unprocessed abnormality. Click to view details or feedback to the App developer.</string>
     <string name="batch_operations">Batch Operations</string>
     <string name="are_you_sure_apply_site_apps">Are you sure you want to apply settings to %1$s apps at once?</string>
@@ -138,7 +138,7 @@
     <string name="go_it_now">Go It Now</string>
     <string name="access_root_fail_tip">Root permission cannot be obtained currently, please confirm that your device has been rooted and agree to grant Root permission.\nIf you are using Magisk and installed the Shamiko module, please confirm whether it is currently in whitelist mode. (Whitelist mode will make it impossible to apply for Root permission)</string>
     <string name="global_config">Global Config</string>
-    <string name="follow_global_config">Follow global config</string>
+    <string name="follow_global_config">Follow global settings</string>
     <string name="batch_operations_number">Batch Operations %1$s Apps</string>
     <string name="user_apps">User apps</string>
     <string name="system_apps">System apps</string>
