@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.sky.apperrors"
+    namespace = "com.vstory.apperrors"
     compileSdk = 37
 
     signingConfigs {
@@ -17,7 +17,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId = "io.github.sky.apperrors"
+        applicationId = "com.vstory.apperrors"
         minSdk = 26
         targetSdk = 37
         versionName = "1.14"

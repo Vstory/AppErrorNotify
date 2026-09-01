@@ -275,7 +275,7 @@
                         android:textStyle="bold" />
 
                     
-                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
+                    <com.vstory.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/only_show_errors_in_front_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -295,7 +295,7 @@
                         android:textSize="12sp" />
 
                     
-                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
+                    <com.vstory.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/only_show_errors_in_main_process_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -315,7 +315,7 @@
                         android:textSize="12sp" />
 
                     
-                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
+                    <com.vstory.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/share_with_file"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -335,7 +335,7 @@
                         android:textSize="12sp" />
 
                     
-                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
+                    <com.vstory.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/enable_apps_configs_template_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -355,7 +355,7 @@
                         android:textSize="12sp" />
 
                     
-                    <io.github.sky.apperrors.ui.widget.MaterialSwitch
+                    <com.vstory.apperrors.ui.widget.MaterialSwitch
                         android:id="@+id/hide_icon_in_launcher_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
