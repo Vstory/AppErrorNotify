@@ -52,14 +52,11 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
     protected void onCreate() {
         checkingTopComponentName();
         easterEggPrefs = getSharedPreferences("easter_egg", MODE_PRIVATE);
-        /** 启用折叠工具栏：标题固定顶栏（pin），大标题+图标随滚动滚出隐藏 */
-        setSupportActionBar(binding.toolbar);
-        if (getSupportActionBar() != null)
-            getSupportActionBar().setTitle(getString(R.string.app_name));
+        /** 启用折叠工具栏：标题由 CollapsingToolbarLayout 的 title 缩放固定，不依赖 ActionBar（避免主题 windowActionBar 冲突） */
+        binding.toolbarLayout.setTitle(getString(R.string.app_name));
         /** 设置 CI 自动构建标识 */
         if (ModuleVersion.isCiMode()) {
-            String ciTitle = "CI " + ModuleVersion.GITHUB_COMMIT_ID;
-            if (getSupportActionBar() != null) getSupportActionBar().setTitle(ciTitle);
+            binding.toolbarLayout.setTitle("CI " + ModuleVersion.GITHUB_COMMIT_ID);
         }
         binding.mainTextModuleVersion.setText(getString(R.string.module_version_plain, ModuleVersion.INSTANCE.toString()));
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInFrontSwitch,

@@ -20,6 +20,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/colorThemeBackground"
+            app:collapsedTitleTextColor="@color/colorTextGray"
+            app:expandedTitleTextColor="@color/colorTextGray"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:titleCollapseMode="scale">
 
