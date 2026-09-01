@@ -52,13 +52,29 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
     protected void onCreate() {
         checkingTopComponentName();
         easterEggPrefs = getSharedPreferences("easter_egg", MODE_PRIVATE);
-        /** 顶栏折叠：setSupportActionBar(需主题 windowActionBar=false)+CollapsingToolbarLayout title 缩放固定（标准做法） */
-        setSupportActionBar(binding.toolbar);
-        binding.toolbarLayout.setTitle(getString(R.string.app_name));
-        /** 设置 CI 自动构建标识 */
+        /** 设置标题（main_title，普通 TextView 一定显示）+ CI 标识 */
+        binding.mainTitle.setText(getString(R.string.app_name));
         if (ModuleVersion.isCiMode()) {
-            binding.toolbarLayout.setTitle("CI " + ModuleVersion.GITHUB_COMMIT_ID);
+            binding.mainTitle.setText("CI " + ModuleVersion.GITHUB_COMMIT_ID);
+            binding.mainTitle.setOnClickListener(v -> {
+                DialogBuilder<?> dlg = new DialogBuilder<>(this);
+                dlg.setTitle(LocaleFactoryKt.getLocale().getCiNoticeDialogTitle());
+                dlg.setMsg(LocaleFactoryKt.getLocale().ciNoticeDialogContent(ModuleVersion.GITHUB_COMMIT_ID));
+                dlg.confirmButton(LocaleFactoryKt.getLocale().getGotIt());
+                dlg.noCancelable();
+                dlg.show();
+            });
         }
+        /** 折叠动画：非滚动时显示 main_title 大标题+图标；滚动收起后 MaterialToolbar 显示折叠标题(居中)、图标隐藏 */
+        binding.toolbar.setTitle("");
+        binding.appBar.addOnOffsetChangedListener((appBar, verticalOffset) -> {
+            int total = appBar.getTotalScrollRange();
+            boolean collapsed = total > 0 && Math.abs(verticalOffset) >= total;
+            binding.mainTitle.setAlpha(collapsed ? 0f : 1f);
+            binding.titleLoggerIcon.setAlpha(collapsed ? 0f : 1f);
+            binding.titleGithubIcon.setAlpha(collapsed ? 0f : 1f);
+            binding.toolbar.setTitle(collapsed ? getString(R.string.app_name) : "");
+        });
         binding.mainTextModuleVersion.setText(getString(R.string.module_version_plain, ModuleVersion.INSTANCE.toString()));
         CompoundButtonFactoryKt.bind(binding.onlyShowErrorsInFrontSwitch,
                 () -> ConfigData.isEnableOnlyShowErrorsInFront(),
