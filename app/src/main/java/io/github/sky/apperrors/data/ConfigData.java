@@ -56,11 +56,15 @@ public class ConfigData {
     /** 模块 UI 初始化（service 连接前 fallback 本地） */
     public static void init(Context context) {
         uiContext = context.getApplicationContext();
+        // 对齐原版：init 时加载应用配置模板集合，避免后续 putAppShowingType 操作空集合导致配置丢失
+        AppErrorsConfigData.refresh();
     }
 
     /** 模块 UI 连接 XposedService 后切换到远程存储 */
     public static void initService(io.github.libxposed.service.XposedService service) {
         remotePrefs = service.getRemotePreferences(PREFS_GROUP);
+        // 对齐原版：切换远程存储后重新加载应用配置模板集合，保证 UI 显示/操作基于最新数据
+        AppErrorsConfigData.refresh();
     }
 
     /** 刷新存储控制类（直读模式，占位兼容） */

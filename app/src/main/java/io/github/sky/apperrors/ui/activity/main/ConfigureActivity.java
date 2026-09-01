@@ -41,6 +41,8 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
 
     @Override
     protected void onCreate() {
+        // 打开应用配置模板界面时重新加载内存集合，确保列表显示与配置操作基于最新数据
+        AppErrorsConfigData.refresh();
         binding.titleBackIcon.setOnClickListener(v -> finish());
         binding.globalIcon.setOnClickListener(v -> {
             showAppConfigDialog(LocaleFactoryKt.getLocale().getGlobalConfig(), "", false, false, type -> {
