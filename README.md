@@ -84,7 +84,7 @@ gradle/libs.versions.toml  # 版本目录(Gradle Version Catalog)
 
 - 包名：`io.github.sky.apperrors`
 - 模块入口：`io.github.sky.apperrors.hook.HookEntry`（extends `XposedModule`）
-- 当前版本：`v1.13(69)`（versionCode 69 / versionName 1.13）
+- 当前版本：`v1.14(70)`（versionCode 70 / versionName 1.14）
 
 ## License
 
