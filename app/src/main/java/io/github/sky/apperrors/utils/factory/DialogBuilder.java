@@ -193,8 +193,8 @@ public class DialogBuilder<VB extends ViewBinding> {
         /** 若当前自定义 View 的对话框没有调用 binding 将会对其手动调用一次以确保显示布局 */
         if (bindingClass != null) getBinding();
         try {
-            Dialog dialog = instance.create();
-            if (customLayoutView != null) dialog.setContentView(customLayoutView);
+            androidx.appcompat.app.AlertDialog dialog = instance.create();
+            if (customLayoutView != null) dialog.setView(customLayoutView);
             dialogInstance = dialog;
             dialog.setOnCancelListener(d -> { if (onCancel != null) onCancel.run(); });
             if (ConfigData.isEnablePreventMisoperation()) {
