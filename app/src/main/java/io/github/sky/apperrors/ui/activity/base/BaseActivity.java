@@ -46,7 +46,9 @@ public abstract class BaseActivity<VB extends ViewBinding> extends AppCompatActi
             binding = null;
         }
         if (binding == null) throw new IllegalStateException("binding failed");
-        if (Build.VERSION.SDK_INT >= 35) binding.getRoot().setFitsSystemWindows(true);
+        // ⚠️ 不要给整布局 root 设 setFitsSystemWindows(true)：Android 15+ 强制 edge-to-edge 下，
+        //     double 消费状态栏 inset 会导致顶栏留空/滚动重叠。状态栏 inset 只由布局内 AppBarLayout 的
+        //    fitsSystemWindows 消费（官方标准做法）。之前的 root.setFitsSystemWindows(true) 已移除。
         setContentView(binding.getRoot());
         /** 隐藏系统的标题栏 */
         if (getSupportActionBar() != null) getSupportActionBar().hide();
