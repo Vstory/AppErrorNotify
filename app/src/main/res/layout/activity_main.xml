@@ -20,26 +20,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/colorThemeBackground"
+            app:collapsedTitleGravity="center"
             app:collapsedTitleTextAppearance="@style/CollapsingTitleCollapsed"
             app:contentScrim="@color/colorThemeBackground"
-            app:expandedTitleGravity="bottom|start"
-            app:expandedTitleMarginBottom="8dp"
+            app:expandedTitleGravity="top|start"
             app:expandedTitleMarginStart="20dp"
             app:expandedTitleMarginEnd="20dp"
+            app:expandedTitleMarginTop="0dp"
             app:expandedTitleTextAppearance="@style/CollapsingTitleExpanded"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:title="@string/app_name"
             app:titleCollapseMode="scale">
 
-            <!-- 展开态内容：右上角图标随滚动滚出隐藏 -->
+            <!-- 展开态内容：右上角图标随滚动滚出隐藏（标题在左上，图标在右上，顶部紧凑无空） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center|end"
                 android:orientation="horizontal"
                 android:paddingStart="20dp"
-                android:paddingTop="12dp"
-                android:paddingBottom="44dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="6dp"
                 android:paddingEnd="20dp"
                 app:layout_collapseMode="parallax">
 
