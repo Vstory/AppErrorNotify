@@ -331,6 +331,12 @@ public class FunctionFactoryKt {
     }
 
     
+    public static void copyToClipboardMarkdown(Context context, String content) {
+        String trimmed = content == null ? "" : content.trim();
+        copyToClipboard(context, "```\n" + trimmed + "\n```");
+    }
+
+    
     public static void openSelfSetting(Context context, String packageName) {
         try {
             Intent intent = new Intent();

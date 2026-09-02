@@ -123,7 +123,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         binding.copyIcon.setOnClickListener(v -> {
             StackTraceShareHelper.showChoose(this, LocaleFactoryKt.getLocale().getCopyErrorStack(),
                     (sDeviceBrand, sDeviceModel, sDisplay, sPackageName) ->
-                            FunctionFactoryKt.copyToClipboard(this,
+                            FunctionFactoryKt.copyToClipboardMarkdown(this,
                                     appErrorsInfo.stackOutputShareContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName)));
         });
         binding.exportIcon.setOnClickListener(v -> {
@@ -210,10 +210,10 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         bindCopyLabel(binding.errorRecordTimeLabel, binding.errorRecordTimeText);
         
         binding.stackCopyButton.setOnClickListener(v -> {
-            FunctionFactoryKt.copyToClipboard(this, appErrorsInfo.stackTrace);
+            FunctionFactoryKt.copyToClipboardMarkdown(this, appErrorsInfo.stackTrace);
         });
-        binding.errorStackTraceMovableText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace));
-        binding.errorStackTraceFixedText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace));
+        binding.errorStackTraceMovableText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace, appErrorsInfo.isNativeCrash));
+        binding.errorStackTraceFixedText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace, appErrorsInfo.isNativeCrash));
         binding.appPanelScrollView.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
             @Override
             public void onScrollChange(android.view.View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
@@ -226,17 +226,51 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
     }
 
     
-    private CharSequence buildStyledStackTrace(String stackTrace) {
+    private CharSequence buildStyledStackTrace(String stackTrace, boolean isNativeCrash) {
         if (stackTrace == null || stackTrace.isEmpty()) return "";
         SpannableString spannable = new SpannableString(stackTrace);
-        int firstLineEnd = stackTrace.indexOf('\n');
-        int headEnd = firstLineEnd > 0 ? firstLineEnd : stackTrace.length();
-        spannable.setSpan(new ForegroundColorSpan(ContextCompat.getColor(this, R.color.colorStackError)), 0, headEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-        spannable.setSpan(new StyleSpan(Typeface.BOLD), 0, headEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-        if (firstLineEnd > 0) {
-            spannable.setSpan(new ForegroundColorSpan(ContextCompat.getColor(this, R.color.colorTextGray)), firstLineEnd, stackTrace.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        int colorError = ContextCompat.getColor(this, R.color.colorStackError);
+        int colorGray = ContextCompat.getColor(this, R.color.colorTextGray);
+        if (!isNativeCrash) {
+            int firstLineEnd = stackTrace.indexOf('\n');
+            int headEnd = firstLineEnd > 0 ? firstLineEnd : stackTrace.length();
+            spannable.setSpan(new ForegroundColorSpan(colorError), 0, headEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            spannable.setSpan(new StyleSpan(Typeface.BOLD), 0, headEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (firstLineEnd > 0) {
+                spannable.setSpan(new ForegroundColorSpan(colorGray), firstLineEnd, stackTrace.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            return spannable;
+        }
+        int[] signalRange = locateNativeSignalLine(stackTrace);
+        if (signalRange == null) {
+            spannable.setSpan(new ForegroundColorSpan(colorGray), 0, stackTrace.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            return spannable;
+        }
+        if (signalRange[0] > 0) {
+            spannable.setSpan(new ForegroundColorSpan(colorGray), 0, signalRange[0], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        spannable.setSpan(new ForegroundColorSpan(colorError), signalRange[0], signalRange[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        spannable.setSpan(new StyleSpan(Typeface.BOLD), signalRange[0], signalRange[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (signalRange[1] < stackTrace.length()) {
+            spannable.setSpan(new ForegroundColorSpan(colorGray), signalRange[1], stackTrace.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return spannable;
+    }
+
+    
+    private int[] locateNativeSignalLine(String stackTrace) {
+        int lineStart = 0;
+        while (lineStart <= stackTrace.length()) {
+            int lineEnd = stackTrace.indexOf('\n', lineStart);
+            int end = lineEnd == -1 ? stackTrace.length() : lineEnd;
+            String line = stackTrace.substring(lineStart, end);
+            if (line.matches("signal\\s+\\d+\\s*\\([^)]*\\)\\s*,?.*")) {
+                return new int[]{lineStart, end};
+            }
+            if (lineEnd == -1) break;
+            lineStart = lineEnd + 1;
+        }
+        return null;
     }
 
     

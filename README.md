@@ -84,7 +84,7 @@ gradle/libs.versions.toml  # 版本目录(Gradle Version Catalog)
 
 - 包名：`com.vstory.apperrors`
 - 模块入口：`com.vstory.apperrors.hook.HookEntry`（extends `XposedModule`）
-- 当前版本：`v1.14(70)`（versionCode 70 / versionName 1.14）
+- 当前版本：`v1.14(73)`（versionCode 73 / versionName 1.14）
 
 ## License
 

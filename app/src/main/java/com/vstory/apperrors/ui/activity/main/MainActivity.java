@@ -99,7 +99,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         
         binding.titleLoggerIcon.setOnClickListener(v -> navigateTo(LoggerActivity.class));
         
-        binding.titleGithubIcon.setOnClickListener(v -> FunctionFactoryKt.openBrowser(this, "https://github.com/Vstory/com.vstory.apperrors", ""));
+        binding.titleGithubIcon.setOnClickListener(v -> FunctionFactoryKt.openBrowser(this, "https://github.com/Vstory/AppErrorNotify", ""));
         
         android.view.View.OnClickListener openGithub = v ->
                 FunctionFactoryKt.openBrowser(this, "https://github.com/KitsunePie/AppErrorsTracking", "");
