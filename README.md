@@ -1,118 +1,28 @@
-# AppErrorNotify（异常通知）
+# AppErrorNotify
 
-> **Android 异常跟踪 LSPosed 模块（通知版）**：拦截应用崩溃 / ANR，以 **系统通知** 方式展示异常，并记录历史、导出分享、按应用配置。基于现代 **libxposed API 102** 实现。
+拦截应用崩溃 / ANR，以**系统通知**展示并记录历史的 Android 异常跟踪模块。
 
-## 功能特性
+基于上游 [KitsunePie/AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking)，用 **libxposed API 102** 纯 Java 重构（原版 Kotlin + YukiHookAPI）。
 
-- **崩溃 / ANR 拦截**：拦截系统错误对话框（API ≤ R 直接取消，API > R 拦截 `ErrorDialogController`），不再弹出原生白色气泡
-- **通知展示**：异常发生时发送系统通知（Channel `APPS_ERRORS`，高优先级），标题含应用名 + 崩溃原因，反复崩溃按 pid 覆盖同一条通知
-- **通知快捷操作**：
-  - 点击通知主体 → 打开异常历史记录列表
-  - 通知 **「忽略该应用」** 按钮 → 忽略该应用异常（直到重启）
-  - 通知 **「查看信息」** 按钮 → 直达该异常详情页
-- **异常历史记录**：记录从模块启动以来的全部异常，支持查看、导出、分享（文本 / 文件）、清空
-- **异常详情信息卡**：展示崩溃应用包名、版本名(代码)、异常类型（Java / Native）、异常信息、文件名、抛出类/方法、行号、记录时间；字段点击可复制（标签+值 / 仅值）
-- **Native 崩溃堆栈高亮**：详情页自动定位 `signal` 行（如 `signal 11 (SIGSEGV)`）红色加粗，其余堆栈帧弱化，崩溃原因一眼可见
-- **Markdown 代码块复制**：复制完整错误报告或异常堆栈时，内容自动用 ``` 代码块包裹，粘贴到聊天 / 文档保持格式
-- **忽略列表**：手动忽略异常的应用管理，重启后自动清空
-- **按应用配置模板**：为每个应用单独配置异常时的展示方式（通知 / Toast / 静默 / 跟随全局，纯通知版**不弹窗**）
-- **显示过滤**：仅显示前台应用异常 / 仅显示主进程异常（后台进程仍记录但不打扰）
-- **界面语言切换**：系统中文环境下，点击主界面标题文本 **5 次** → 界面语言中↔英互切；崩溃通知文案跟随切换后的语言
-- **桌面图标显隐**：可在桌面隐藏 / 恢复模块图标
-- **调试日志**：内置 Logger 调试日志界面，方便排查
-- **快速设置磁贴**：提供 Quick Settings 快捷开关
+## 相比上游新增
 
-## 开关说明
+- **系统通知展示**：崩溃 / ANR 统一以系统通知（Channel `APPS_ERRORS`）呈现，不弹原生对话框；原版的弹窗展示页（`AppErrorsDisplayActivity`）已移除
+- **调试日志 UI 开关**：新增调试页（`DebugActivity`），调试日志由界面开关运行时控制，正式版亦可随时开关，无需重启
+- **Native 崩溃堆栈高亮**：详情页定位 `signal` 行（如 `signal 11 (SIGSEGV)`）红色加粗，崩溃原因一眼可见
+- **Markdown 代码块复制**：复制完整报告 / 堆栈自动 ``` 包裹，粘贴到聊天 / 文档保持格式
 
-以下配置项在模块主界面提供独立开关，保存后 **立即生效**（无需重启，`system_server` 每次崩溃处理时自动读取最新配置）：
+其余（异常历史、忽略列表、按应用配置、前台 / 主进程过滤、隐藏图标、语言切换、磁贴）与上游一致。
 
-| 开关 | 作用 |
-|------|------|
-| **仅显示前台应用异常** | 只通知前台应用的崩溃，后台应用异常仅记录不打扰 |
-| **仅显示主进程异常** | 只通知应用主进程的崩溃（过滤子进程 / 渲染进程） |
-| **分享附带文件** | 分享崩溃报告时同时附带 .log 文件（否则纯文本） |
-| **按应用配置模板** | 为单个应用单独设置展示方式（通知 / Toast / 静默） |
-| **桌面图标显隐** | 在桌面显示 / 隐藏模块图标 |
-| **界面语言切换** | 点击主界面标题文本 5 次，中文 ↔ English 切换 |
+## 版本
 
-> 崩溃拦截 / 通知展示 / 历史记录为模块**核心行为**，默认开启，不提供关闭开关。
-> 「忽略列表」与通知上的「忽略该应用」为会话级操作，模块重启后自动清空。
+`v1.14.73`（versionCode 73 / versionName 1.14）· libxposed API 102 · minSdk 26 / targetSdk 37
 
-## 技术栈
+## 安装
 
-- **纯 Java** 实现（0 Kotlin 源码）+ ViewBinding
-- libxposed **Modern API 102**（`api` 框架提供 compileOnly，`interface`/`service` 模块自带）
-- AGP **9.2.1** + Gradle **9.5.0**
-- 作用域：**`system_server`** 系统框架进程（scope.list = `android`）
-- minSdk **26** / targetSdk **37** / compileSdk **37**
-
-## 目录结构
-
-```
-app/src/main/
-├── java/com.vstory.apperrors/
-│   ├── application/          # 模块 Application(AppErrorsApplication)
-│   ├── bean/                 # 实体类(AppErrorsInfoBean/AppInfoBean/...)
-│   ├── constants/            # 常量(ModuleVersion/PackageName)
-│   ├── data/                 # 数据层(ConfigData/AppErrorsRecordData/...)
-│   ├── hook/                 # 模块入口 HookEntry + 系统框架 Hook
-│   │   └── entity/           #   FrameworkHooker 等 hook 实现
-│   ├── locale/               # 语言/locale 处理
-│   ├── service/              # QuickStartTileService(快速设置磁贴)
-│   ├── ui/                   # 界面(activity/widget)
-│   │   └── activity/         #   主界面/异常记录/详情/配置/调试
-│   ├── utils/                # 工具(factory/tool)
-│   └── wrapper/              # BuildConfigWrapper 等包装
-├── res/                      # 资源(layout/values/values-night/values-zh-rCN/...)
-├── resources/META-INF/xposed # LSPosed 模块声明(入口/作用域/API)
-└── libs/libxposed/           # 本地 libxposed API 102 jar(api/interface/service)
-
-build.sh          # 统一构建脚本(内置 JDK17)
-gradle/libs.versions.toml  # 版本目录(Gradle Version Catalog)
-```
-
-## 构建
-
-> ⚠️ **构建必须使用 JDK17**（arm64 环境 `/usr/lib/jvm/java-21-openjdk-arm64` 为 JRE-only，无 javac，直接 `./gradlew` 会报错）。
-
-推荐使用项目根目录的 **`build.sh`**（自动设置 JDK17，唯一构建入口）：
-
-```bash
-./build.sh          # 构建 release APK → app/build/outputs/apk/release/app-release.apk
-./build.sh clean    # 清理构建产物
-```
-
-也可以直接调用 Gradle（需自行保证 JAVA_HOME 为 JDK17）：
-
-```bash
-./gradlew :app:assembleRelease
-```
-
-产物：`app/build/outputs/apk/release/app-release.apk`
-
-> 依赖 `android.jar` 与本地 libxposed jar（`app/libs/libxposed/`），构建环境需可访问 Android SDK。
-
-## 特殊情况
-
-> ⚠️ 本模块 Hook 系统框架（`system_server`），**首次启用或更新模块后需重启系统**（或重启 system_server）才能生效；作用域必须勾选系统框架（`system_server`），非单个应用。
-
-## 安装使用
-
-1. **LSPosed** 中启用本模块，勾选系统框架（**`system_server`**）
-2. 重启系统（或重启 `system_server`）使模块生效
-3. 触发任意应用崩溃 → 收到「异常跟踪」通知
-
-## 模块信息
-
-- 包名：`com.vstory.apperrors`
-- 模块入口：`com.vstory.apperrors.hook.HookEntry`（extends `XposedModule`）
-- 当前版本：`v1.14.73`（versionCode 73 / versionName 1.14）
+1. [LSPosed](https://github.com/LSPosed/LSPosed) 启用本模块，勾选 **system_server**
+2. 重启系统生效
+3. 触发应用崩溃 → 收到「异常跟踪」通知
 
 ## License
 
-本项目为 **GNU AGPL-3.0** 开源协议。
-
-- Copyright (C) 2017 Fankes Studio (qzmmcn@163.com)
-- Copyright (C) 2026 Vstory (Java rework)
-
-完整协议见 [LICENSE](LICENSE)。
+**GNU AGPL-3.0**（上游 Copyright (C) 2017 Fankes Studio；2026 Vstory Java 重构）。详见 [LICENSE](LICENSE)。
