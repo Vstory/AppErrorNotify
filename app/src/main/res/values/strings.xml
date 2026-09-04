@@ -111,6 +111,11 @@
     <string name="module_not_fully_activated_tip">The module is not fully activated and may not be able to load the current settings item. It is recommended to re -start the system and try it out.</string>
     <string name="show_errors_notify">Post a system notification</string>
     <string name="app_errors_tip">App collapses an unprocessed abnormality. Click to view details or feedback to the App developer.</string>
+    <string name="crash_auto_suppress_tip">\'%1$s\' crashed repeatedly; it was stopped and its crash notifications are auto-paused. They resume after 3 quiet minutes.</string>
+    <string name="crash_auto_suppress_notice_title">Crash notifications auto-paused</string>
+    <string name="crash_auto_suppress_notice_content">\'%1$s\' crashed repeatedly in a short time, so AppErrorNotify stopped it and auto-paused its crash notifications to avoid overwhelming the system. Notifications resume automatically after 3 quiet minutes; reopen the app when you are ready, or tap the action below to resume now.</string>
+    <string name="crash_auto_suppress_resume">Resume notifications</string>
+    <string name="crash_auto_suppress_resumed">Notifications resumed for %1$s\n%2$s</string>
     <string name="batch_operations">Batch Operations</string>
     <string name="are_you_sure_apply_site_apps">Are you sure you want to apply settings to %1$s apps at once?</string>
     <string name="developer_notice_tip">This module is specially designed for Android developers.\n\nWhen it is possible that the computer cannot be connected and ADB cannot be performed, this module can be used to quickly capture any exception of any installed apps, so as to quickly locate the problem.\n\nThe error log of apps crashing is an invaluable asset for developers. If you are not a developer, you can still install this module to provide developers with more exception information to quickly solve problems.</string>

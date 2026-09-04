@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.vstory.apperrors"
+    namespace = "io.github.vstory.apperrors"
     compileSdk = 37
 
     signingConfigs {
@@ -17,11 +17,11 @@ android {
         }
     }
     defaultConfig {
-        applicationId = "com.vstory.apperrors"
+        applicationId = "io.github.vstory.apperrors"
         minSdk = 26
         targetSdk = 37
-        versionName = "1.14"
-        versionCode = 73
+        versionName = "1.15"
+        versionCode = 74
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

@@ -33,8 +33,8 @@ case "$ACTION" in
         echo "当前版本: ${VERSION_NAME}(${VERSION_CODE})"
         case "$BUMP" in
             patch)   VERSION_CODE=$((VERSION_CODE + 1)) ; echo "  → patch: versionCode+1" ;;
-            minor)   VERSION_NAME=$(echo "$VERSION_NAME" | awk -F. '{printf "%d.%d.0", $1, $2+1}') ; VERSION_CODE=$((VERSION_CODE + 1)) ; echo "  → minor: 次版本+1" ;;
-            major)   VERSION_NAME=$(echo "$VERSION_NAME" | awk -F. '{printf "%d.0.0", $1+1}') ; VERSION_CODE=$((VERSION_CODE + 1)) ; echo "  → major: 主版本+1" ;;
+            minor)   VERSION_NAME=$(echo "$VERSION_NAME" | awk -F. '{printf "%d.%d", $1, $2+1}') ; VERSION_CODE=$((VERSION_CODE + 1)) ; echo "  → minor: 次版本+1" ;;
+            major)   VERSION_NAME=$(echo "$VERSION_NAME" | awk -F. '{printf "%d.0", $1+1}') ; VERSION_CODE=$((VERSION_CODE + 1)) ; echo "  → major: 主版本+1" ;;
         esac
         echo "  新版本: ${VERSION_NAME}(${VERSION_CODE})"
         sed -i "s/versionName\s*=\s*\"[^\"]*\"/versionName = \"$VERSION_NAME\"/" "$GRADLE_FILE"

@@ -111,6 +111,11 @@
     <string name="module_not_fully_activated_tip">模块未完全激活，可能无法加载当前设置项，建议重新启动系统后重试。</string>
     <string name="show_errors_notify">发送系统通知</string>
     <string name="app_errors_tip">应用发生了未处理的异常而崩溃，点击查看详情或反馈给应用开发者。</string>
+    <string name="crash_auto_suppress_tip">「%1$s」短时间内反复崩溃，已停止该应用并暂停其崩溃通知；停止崩溃 3 分钟后自动恢复。</string>
+    <string name="crash_auto_suppress_notice_title">崩溃通知已自动暂停</string>
+    <string name="crash_auto_suppress_notice_content">「%1$s」短时间内反复崩溃，AppErrorNotify 已停止该应用并暂停它的崩溃通知，避免反复重启拖垮系统。停止崩溃 3 分钟后会自动恢复通知；如需使用可重新打开该应用，也可点下方按钮立即恢复。</string>
+    <string name="crash_auto_suppress_resume">恢复通知</string>
+    <string name="crash_auto_suppress_resumed">已恢复「%1$s」的崩溃通知\n%2$s</string>
     <string name="batch_operations">批量操作</string>
     <string name="are_you_sure_apply_site_apps">你确定要一次性应用设置给 %1$s 个应用吗？</string>
     <string name="developer_notice_tip">此模块专为 Android 开发者而打造。\n\n在可能的无法连接电脑，不能进行 ADB 调试的时候，可通过此模块来快速捕获任意已安装应用的任意异常，以便快速定位问题。\n\n应用发生崩溃的错误日志对开发者来说是无价的财富，若你不是开发者，你依然可以安装此模块，以便给开发者提供更多异常信息快速解决问题。</string>
