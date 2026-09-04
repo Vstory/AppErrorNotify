@@ -4,6 +4,12 @@
 
 基于上游 [KitsunePie/AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking)，用 **libxposed API 102** 纯 Java 重构（原版 Kotlin + YukiHookAPI）。
 
+## ⚠️ 已知问题（重要，请先阅读）
+
+**现有发布版（v1.14.73 及更早）存在致命缺陷：未处理崩溃风暴。** 当某个应用在短时间内反复崩溃（崩溃风暴）时，模块会为每一次崩溃持续发送系统通知，也无法熔断反复重启的崩溃源；若崩溃应用带自复活闹钟（崩溃 → 拉起 → 再崩），`crash_dump` 转储风暴不断累积，会拖垮系统（真机实测可致 zygote / system_server 卡死重启）。
+
+**该缺陷已在新版本修复**：加入自动风暴抑制——30 秒内同应用崩溃 ≥ 3 次即强制停止崩溃源应用 + 自动暂停其崩溃通知，修复将随下一个版本发布。在更新前，请谨慎用本模块监控会高频崩溃的应用。
+
 ## 相比上游新增
 
 - **纯通知版**：上游崩溃可按应用配置「对话框 / 通知 / Toast」展示；本模块去掉该配置与弹窗页（`AppErrorsDisplayActivity`），崩溃 / ANR 一律只发系统通知
