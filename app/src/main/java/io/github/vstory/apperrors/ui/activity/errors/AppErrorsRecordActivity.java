@@ -160,6 +160,10 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
             @Override
             public void onReceive(android.content.Context ctx, Intent intent) {
                 final List<AppErrorsInfoBean> all = AppErrorsRecordData.allData;
+                
+                
+                final boolean timedOut = intent != null
+                        && "io.github.vstory.apperrors.action.ERRORS_TIMEOUT".equals(intent.getAction());
                 runOnUiThread(() -> {
                     binding.titleCountText.setText(LocaleFactoryKt.getLocale().recordCount(all.size()));
                     ViewKt.setVisible(binding.listProgressView, false);
@@ -171,6 +175,10 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                     listData.clear();
                     listData.addAll(all);
                     if (onChanged != null) onChanged.run();
+                    if (timedOut) {
+                        FunctionFactoryKt.toast(AppErrorsRecordActivity.this,
+                                getString(R.string.module_not_fully_activated_tip));
+                    }
                 });
             }
         });

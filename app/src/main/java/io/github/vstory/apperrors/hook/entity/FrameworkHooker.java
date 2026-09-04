@@ -20,7 +20,10 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Message;
+import android.os.Process;
 import android.util.ArrayMap;
 import android.util.Log;
 
@@ -126,6 +129,52 @@ public class FrameworkHooker {
         Debug.d(TAG, m);
         
         ModuleLogger.log("D", TAG, m, null);
+    }
+
+    
+    
+    
+    
+    
+    
+    
+    
+    private static volatile Handler bgHandler;
+
+    private static Handler ensureBgHandler() {
+        Handler h = bgHandler;
+        if (h == null) {
+            synchronized (FrameworkHooker.class) {
+                if (bgHandler == null) {
+                    try {
+                        HandlerThread t = new HandlerThread("AppErrorNotify-Bg",
+                                Process.THREAD_PRIORITY_BACKGROUND);
+                        t.start();
+                        bgHandler = new Handler(t.getLooper());
+                    } catch (Throwable ignored) {
+                        bgHandler = null;
+                    }
+                }
+                h = bgHandler;
+            }
+        }
+        return h;
+    }
+
+    
+    private static void runOnBg(Runnable r) {
+        try {
+            Handler h = ensureBgHandler();
+            if (h != null) {
+                h.post(r);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            r.run();
+        } catch (Throwable ignored) {
+        }
     }
 
     
@@ -497,7 +546,17 @@ public class FrameworkHooker {
             errorChannelRetry = 0;
         } catch (Throwable t) {
             errorChannelRegistered = false;
-            logError("错误通道注册失败\n  " + t);
+            
+            
+            
+            boolean amsNotReady = t instanceof NullPointerException
+                    && String.valueOf(t.getMessage()).contains("registerReceiverWithFeature");
+            if (amsNotReady) {
+                logInfo("错误通道注册推迟：系统服务未就绪（AMS 未 publish，启动早期正常），3s 后自动重试 ("
+                        + (errorChannelRetry + 1) + "/" + ERROR_CHANNEL_RETRY_MAX + ")");
+            } else {
+                logError("错误通道注册失败\n  " + t);
+            }
             
             if (context != null && errorChannelRetry < ERROR_CHANNEL_RETRY_MAX) {
                 errorChannelRetry++;
@@ -630,7 +689,11 @@ public class FrameworkHooker {
     }
 
     
-    private static boolean isBurstSuppressed(String pkg, String appName, boolean muted, int userId, Context context) {
+    private static final int BURST_NONE = 0;
+    private static final int BURST_TRIGGERED = 1;
+    private static final int BURST_SILENT = 2;
+
+    private static int burstSuppressState(String pkg, int userId, Context context) {
         try {
             long now = System.currentTimeMillis();
             Long deadline = autoSuppressedUntil.get(pkg);
@@ -638,7 +701,7 @@ public class FrameworkHooker {
                 if (now < deadline) {
                     
                     autoSuppressedUntil.put(pkg, now + SUPPRESS_QUIET_MS);
-                    return true;
+                    return BURST_SILENT;
                 }
                 
                 autoSuppressedUntil.remove(pkg);
@@ -655,20 +718,14 @@ public class FrameworkHooker {
                 crashWindowTimes.remove(pkg);
                 cancelAppNotification(context, pkg);
                 forceStopCrashSource(context, pkg, userId);
-                
-                if (!muted) {
-                    postSuppressNotice(context, pkg, appName);
-                    FunctionFactoryKt.toastLong(context, LocaleFactoryKt.getLocale().getCrashAutoSuppressTip(appName));
-                }
                 logInfo("Burst suppress: \"" + pkg + "\" crashed " + BURST_LIMIT + " times within "
-                        + (BURST_WINDOW_MS / 1000) + "s -> app force-stopped, notifications auto-paused"
-                        + (muted ? " (muted: silent)" : ""));
-                return true;
+                        + (BURST_WINDOW_MS / 1000) + "s -> app force-stopped, notifications auto-paused");
+                return BURST_TRIGGERED;
             }
         } catch (Throwable t) {
             logError("Burst suppress check failed\n  " + t);
         }
-        return false;
+        return BURST_NONE;
     }
 
     
@@ -784,12 +841,22 @@ public class FrameworkHooker {
         boolean muted = MutedErrorsData.getMutedErrorsIfUnlockApps().contains(d.packageName())
                 || MutedErrorsData.getMutedErrorsIfRestartApps().contains(d.packageName());
         
+        boolean isSelf = BuildConfigWrapper.APPLICATION_ID.equals(d.packageName());
+        
+        if (!isSelf) {
+            int burstState = burstSuppressState(d.packageName(), d.userId(), context);
+            if (burstState == BURST_TRIGGERED) {
+                
+                if (!muted) postSuppressNotice(context, d.packageName(), appName);
+                return;
+            }
+            if (burstState == BURST_SILENT) return;
+        }
+        
         if ((d.isBackgroundProcess() || !FunctionFactoryKt.isAppCanOpened(context, d.packageName()))
                 && ConfigData.isEnableOnlyShowErrorsInFront()) return;
         
         if (!d.isMainProcess() && ConfigData.isEnableOnlyShowErrorsInMain()) return;
-        
-        if (isBurstSuppressed(d.packageName(), appName, muted, d.userId(), context)) return;
         
         if (muted) return;
 
@@ -1090,7 +1157,10 @@ public class FrameworkHooker {
                     
                     Object resultData = chain.getArgs().isEmpty() ? null : chain.getArgs().get(chain.getArgs().size() - 1);
                     
-                    handleShowAppErrorUi(new AppErrorsProcessData(thisObj, proc, resultData), context);
+                    
+                    
+                    AppErrorsProcessData errData = new AppErrorsProcessData(thisObj, proc, resultData);
+                    runOnBg(() -> handleShowAppErrorUi(errData, context));
                     return result;
                 });
         } else {
@@ -1109,7 +1179,10 @@ public class FrameworkHooker {
                     
                     Object proc = resultData != null ? getField(resultData, "proc") : null;
                     
-                    handleShowAppErrorUi(new AppErrorsProcessData(thisObj, proc, resultData), context);
+                    
+                    
+                    AppErrorsProcessData errData = new AppErrorsProcessData(thisObj, proc, resultData);
+                    runOnBg(() -> handleShowAppErrorUi(errData, context));
                     return result;
                 });
         }
@@ -1132,9 +1205,12 @@ public class FrameworkHooker {
                     return result;
                 }
                 
+                
+                
                 ApplicationErrorReport.CrashInfo crashInfo = chain.getArgs().size() > 1 && chain.getArgs().get(1) instanceof ApplicationErrorReport.CrashInfo
                         ? (ApplicationErrorReport.CrashInfo) chain.getArgs().get(1) : null;
-                handleAppErrorsInfo(new AppErrorsProcessData(thisObj, proc, null), context, crashInfo);
+                AppErrorsProcessData recData = new AppErrorsProcessData(thisObj, proc, null);
+                runOnBg(() -> handleAppErrorsInfo(recData, context, crashInfo));
                 return result;
             });
         

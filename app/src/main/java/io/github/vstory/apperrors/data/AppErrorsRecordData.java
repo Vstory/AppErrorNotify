@@ -374,6 +374,22 @@ public class AppErrorsRecordData {
             final boolean[] gotEmpty = {false};       
             final android.content.BroadcastReceiver[] holder = new android.content.BroadcastReceiver[1];
             
+            
+            
+            final Runnable timeoutTask = () -> {
+                if (!finished[0]) {
+                    finished[0] = true;
+                    try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                    allData = new CopyOnWriteArrayList<>();
+                    if (resultReceiver != null) {
+                        android.content.Intent timeoutIntent =
+                                new android.content.Intent("io.github.vstory.apperrors.action.ERRORS_TIMEOUT");
+                        resultReceiver.onReceive(context, timeoutIntent);
+                    }
+                }
+            };
+            handler.postDelayed(timeoutTask, 5000L);   
+            
             android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
                 @Override
                 public void onReceive(android.content.Context ctx, android.content.Intent intent) {
@@ -392,6 +408,7 @@ public class AppErrorsRecordData {
                         allData = new CopyOnWriteArrayList<>(accepted);
                         if (!finished[0]) {
                             finished[0] = true;
+                            handler.removeCallbacks(timeoutTask);
                             try { ctx.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
                             if (resultReceiver != null) resultReceiver.onReceive(ctx, intent);
                         }
@@ -402,6 +419,7 @@ public class AppErrorsRecordData {
                     handler.postDelayed(() -> {
                         if (!finished[0]) {
                             finished[0] = true;
+                            handler.removeCallbacks(timeoutTask);
                             try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
                             
                             allData = new CopyOnWriteArrayList<>();
