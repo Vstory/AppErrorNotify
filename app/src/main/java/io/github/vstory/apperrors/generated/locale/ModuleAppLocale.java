@@ -53,6 +53,8 @@ public class ModuleAppLocale {
     public String getAccessRootFailTip() { return str(R.string.access_root_fail_tip); }
     public String getAllErrorsClearSuccess() { return str(R.string.all_errors_clear_success); }
     public String getAppErrorsStatistics() { return str(R.string.app_errors_statistics); }
+    public String getAppErrorsStatisticsReport() { return str(R.string.app_errors_statistics_report); }
+    public String getTimesUnit(int p0) { return str(R.string.times_unit, p0); }
     public String getAppErrorsTip() { return str(R.string.app_errors_tip); }
     public String getAppName() { return str(R.string.app_name); }
     public String getAreYouSureClearErrors() { return str(R.string.are_you_sure_clear_errors); }

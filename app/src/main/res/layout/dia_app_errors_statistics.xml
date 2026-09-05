@@ -1,169 +1,238 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingLeft="15dp"
-    android:paddingTop="15dp"
-    android:paddingRight="15dp"
+    android:paddingLeft="16dp"
+    android:paddingTop="8dp"
+    android:paddingRight="16dp"
+    android:paddingBottom="4dp"
     tools:ignore="ContentDescription,SmallSp">
 
+    
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="8.5dp"
-        android:layout_marginRight="8.5dp"
-        android:layout_marginBottom="15dp"
-        android:gravity="center|start">
+        android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="@string/total_errors"
-            android:textSize="14sp" />
+            android:layout_margin="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_stack_round"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingTop="14dp"
+            android:paddingBottom="12dp">
 
-        <TextView
-            android:id="@+id/total_errors_unit_text"
-            android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/tv_crash_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorTextGray"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                tools:text="12" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/total_errors"
+                android:textColor="@color/colorTextDark"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="@string/total_errors_unit"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:layout_margin="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_stack_round"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingTop="14dp"
+            android:paddingBottom="12dp">
+
+            <TextView
+                android:id="@+id/tv_total_apps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorTextGray"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                tools:text="368" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/total_apps"
+                android:textColor="@color/colorTextDark"
+                android:textSize="11sp" />
+        </LinearLayout>
     </LinearLayout>
 
+    
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="8.5dp"
-        android:layout_marginRight="8.5dp"
-        android:layout_marginBottom="15dp"
-        android:gravity="center|start">
+        android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="@string/total_apps"
-            android:textSize="14sp" />
+            android:layout_margin="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_stack_round"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingTop="14dp"
+            android:paddingBottom="12dp">
 
-        <TextView
-            android:id="@+id/total_apps_unit_text"
-            android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/tv_involved_apps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorTextGray"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                tools:text="3" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/involved_apps"
+                android:textColor="@color/colorTextDark"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="@string/total_apps_unit"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:layout_margin="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_stack_round"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingTop="14dp"
+            android:paddingBottom="12dp">
+
+            <TextView
+                android:id="@+id/tv_crash_ratio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorTextGray"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                tools:text="0.82%" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/total_proportion_of_errors"
+                android:textColor="@color/colorTextDark"
+                android:textSize="11sp" />
+        </LinearLayout>
     </LinearLayout>
 
+    
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="4dp"
+        android:layout_marginTop="12dp"
+        android:text="@string/most_errors_app"
+        android:textColor="@color/colorTextDark"
+        android:textSize="12sp" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="8.5dp"
-        android:layout_marginRight="8.5dp"
-        android:layout_marginBottom="15dp"
-        android:gravity="center|start">
+        android:layout_margin="4dp"
+        android:background="@drawable/bg_stack_round"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="10dp"
+        android:paddingTop="8dp"
+        android:paddingRight="10dp"
+        android:paddingBottom="8dp">
+
+        <ImageView
+            android:id="@+id/img_top_app_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_android" />
 
         <TextView
+            android:id="@+id/tv_top_app_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="@color/colorTextGray"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:text="微信" />
+
+        <TextView
+            android:id="@+id/tv_top_app_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="@string/most_errors_app"
-            android:textSize="14sp" />
-
-        <androidx.cardview.widget.CardView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_marginEnd="5dp"
-            app:cardBackgroundColor="@color/trans"
-            app:cardCornerRadius="3.5dp"
-            app:cardElevation="0dp">
-
-            <ImageView
-                android:id="@+id/most_errors_app_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_android" />
-        </androidx.cardview.widget.CardView>
-
-        <TextView
-            android:id="@+id/most_errors_app_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:layout_marginLeft="8dp"
+            android:textColor="@color/colorTextDark"
+            android:textSize="12sp"
+            tools:text="5 次" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    
+    <TextView
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="8.5dp"
-        android:layout_marginRight="8.5dp"
-        android:layout_marginBottom="15dp"
-        android:gravity="center|start">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="@string/most_errors_type"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/most_errors_type_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="5dp"
-            android:background="@drawable/bg_red_round"
-            android:ellipsize="end"
-            android:paddingLeft="3dp"
-            android:paddingTop="0.5dp"
-            android:paddingRight="3dp"
-            android:paddingBottom="0.5dp"
-            android:singleLine="true"
-            android:textColor="@color/white"
-            android:textSize="10sp" />
-    </LinearLayout>
+        android:layout_marginLeft="4dp"
+        android:layout_marginTop="10dp"
+        android:text="@string/most_errors_type"
+        android:textColor="@color/colorTextDark"
+        android:textSize="12sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="8.5dp"
-        android:layout_marginRight="8.5dp"
-        android:gravity="center|start">
+        android:layout_margin="4dp"
+        android:background="@drawable/bg_stack_round"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="10dp"
+        android:paddingTop="8dp"
+        android:paddingRight="10dp"
+        android:paddingBottom="8dp">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/tv_top_type_name"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
+            android:layout_weight="1"
             android:ellipsize="end"
             android:singleLine="true"
-            android:text="@string/total_proportion_of_errors"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/total_ppt_of_errors_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:singleLine="true"
+            android:textColor="@color/colorStackError"
             android:textSize="14sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            tools:text="NullPointerException" />
+
+        <TextView
+            android:id="@+id/tv_top_type_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:textColor="@color/colorTextDark"
+            android:textSize="12sp"
+            tools:text="5 次" />
     </LinearLayout>
 </LinearLayout>

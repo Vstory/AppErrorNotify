@@ -20,8 +20,8 @@ android {
         applicationId = "io.github.vstory.apperrors"
         minSdk = 26
         targetSdk = 37
-        versionName = "1.16"
-        versionCode = 76
+        versionName = "1.17"
+        versionCode = 77
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

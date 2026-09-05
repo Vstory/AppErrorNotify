@@ -413,6 +413,10 @@ public class FrameworkHooker {
     static final String EXTRA_ERRORS = "errors";
     static final String EXTRA_BEAN = "bean";
     
+    static final String ACTION_GET_APP_TOTAL = "io.github.vstory.apperrors.action.GET_APP_TOTAL";
+    static final String ACTION_APP_TOTAL_RESULT = "io.github.vstory.apperrors.action.APP_TOTAL_RESULT";
+    static final String EXTRA_APP_TOTAL = "total_apps";
+    
     static final String ACTION_GET_LOGS = ModuleLogger.ACTION_GET_LOGS;
     static final String ACTION_LOGS_RESULT = ModuleLogger.ACTION_LOGS_RESULT;
     static final String EXTRA_LOGS = ModuleLogger.EXTRA_LOGS;
@@ -471,6 +475,26 @@ public class FrameworkHooker {
                             if (bean instanceof io.github.vstory.apperrors.bean.AppErrorsInfoBean)
                                 AppErrorsRecordData.remove((io.github.vstory.apperrors.bean.AppErrorsInfoBean) bean);
                             logDebug("Error channel: removed one record from UI");
+                        } else if (ACTION_GET_APP_TOTAL.equals(action)) {
+                            
+                            
+                            
+                            int total = 0;
+                            try {
+                                java.util.List<android.content.pm.PackageInfo> all =
+                                        ctx.getPackageManager().getInstalledPackages(0);
+                                for (android.content.pm.PackageInfo pi : all) {
+                                    String pkg = pi != null ? pi.packageName : null;
+                                    if (pkg != null && !pkg.equals("android")
+                                            && !pkg.equals(BuildConfigWrapper.APPLICATION_ID)) total++;
+                                }
+                            } catch (Throwable ignored) {
+                            }
+                            Intent result = new Intent(ACTION_APP_TOTAL_RESULT);
+                            result.setPackage(BuildConfigWrapper.APPLICATION_ID);
+                            result.putExtra(EXTRA_APP_TOTAL, total);
+                            ctx.sendBroadcast(result);
+                            logDebug("Stats channel: sent total apps " + total + " to UI");
                         } else if (ACTION_GET_LOGS.equals(action)) {
                             
                             Intent result = new Intent(ACTION_LOGS_RESULT);
@@ -531,6 +555,7 @@ public class FrameworkHooker {
             filter.addAction(ACTION_GET_ERRORS);
             filter.addAction(ACTION_CLEAR_ERRORS);
             filter.addAction(ACTION_REMOVE_ERROR);
+            filter.addAction(ACTION_GET_APP_TOTAL);
             filter.addAction(ACTION_GET_LOGS);
             filter.addAction(ACTION_GET_MUTED);
             filter.addAction(ACTION_MUTE_ERROR);

@@ -366,6 +366,14 @@ public class AppErrorsRecordData {
     
     public static void fetchFromSystemServer(final android.content.Context context,
                                              final android.content.BroadcastReceiver resultReceiver) {
+        fetchFromSystemServerInternal(context, resultReceiver, 0);
+    }
+
+    
+    private static void fetchFromSystemServerInternal(final android.content.Context context,
+                                                      final android.content.BroadcastReceiver resultReceiver,
+                                                      final int attempt) {
+        final boolean isLastAttempt = attempt >= FETCH_RETRY_MAX - 1;
         try {
             android.content.IntentFilter filter = new android.content.IntentFilter();
             filter.addAction("io.github.vstory.apperrors.action.ERRORS_RESULT");
@@ -377,18 +385,26 @@ public class AppErrorsRecordData {
             
             
             final Runnable timeoutTask = () -> {
-                if (!finished[0]) {
-                    finished[0] = true;
-                    try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
-                    allData = new CopyOnWriteArrayList<>();
-                    if (resultReceiver != null) {
-                        android.content.Intent timeoutIntent =
-                                new android.content.Intent("io.github.vstory.apperrors.action.ERRORS_TIMEOUT");
-                        resultReceiver.onReceive(context, timeoutIntent);
-                    }
+                if (finished[0]) return;
+                finished[0] = true;
+                try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                if (!isLastAttempt) {
+                    
+                    log("Retry fetch app errors (" + (attempt + 1) + "/" + FETCH_RETRY_MAX + "), "
+                            + (FETCH_RETRY_MAX - attempt - 1) + " left", null);
+                    handler.postDelayed(() -> fetchFromSystemServerInternal(context, resultReceiver, attempt + 1),
+                            FETCH_RETRY_INTERVAL_MS);
+                    return;
+                }
+                
+                allData = new CopyOnWriteArrayList<>();
+                if (resultReceiver != null) {
+                    android.content.Intent timeoutIntent =
+                            new android.content.Intent("io.github.vstory.apperrors.action.ERRORS_TIMEOUT");
+                    resultReceiver.onReceive(context, timeoutIntent);
                 }
             };
-            handler.postDelayed(timeoutTask, 5000L);   
+            handler.postDelayed(timeoutTask, FETCH_TIMEOUT_MS);   
             
             android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
                 @Override
@@ -447,6 +463,73 @@ public class AppErrorsRecordData {
     
     public static String getFolderPathForLog() {
         return folderPath;
+    }
+
+    
+    private static final long FETCH_TIMEOUT_MS = 5000L;
+
+    
+    private static final int FETCH_RETRY_MAX = 4;
+
+    
+    private static final long FETCH_RETRY_INTERVAL_MS = 3000L;
+
+    
+    public static void fetchAppTotalFromSystemServer(final android.content.Context context,
+                                                     final java.util.function.Consumer<Integer> callback) {
+        fetchAppTotalInternal(context, callback, 0);
+    }
+
+    
+    private static void fetchAppTotalInternal(final android.content.Context context,
+                                              final java.util.function.Consumer<Integer> callback,
+                                              final int attempt) {
+        final boolean isLastAttempt = attempt >= FETCH_RETRY_MAX - 1;
+        try {
+            android.content.IntentFilter filter = new android.content.IntentFilter();
+            filter.addAction("io.github.vstory.apperrors.action.APP_TOTAL_RESULT");
+            final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+            final boolean[] finished = {false};
+            final android.content.BroadcastReceiver[] holder = new android.content.BroadcastReceiver[1];
+            
+            
+            final Runnable timeoutTask = () -> {
+                if (finished[0]) return;
+                finished[0] = true;
+                try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                if (!isLastAttempt) {
+                    log("Retry fetch app total (" + (attempt + 1) + "/" + FETCH_RETRY_MAX + "), "
+                            + (FETCH_RETRY_MAX - attempt - 1) + " left", null);
+                    handler.postDelayed(() -> fetchAppTotalInternal(context, callback, attempt + 1),
+                            FETCH_RETRY_INTERVAL_MS);
+                    return;
+                }
+                if (callback != null) callback.accept(-1);
+            };
+            handler.postDelayed(timeoutTask, FETCH_TIMEOUT_MS);
+            android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                    if (finished[0]) return;
+                    finished[0] = true;
+                    handler.removeCallbacks(timeoutTask);
+                    try { ctx.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                    int total = intent != null ? intent.getIntExtra("total_apps", -1) : -1;
+                    if (callback != null) callback.accept(total);
+                }
+            };
+            holder[0] = receiver;
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+            else
+                context.registerReceiver(receiver, filter);
+            
+            android.content.Intent request = new android.content.Intent("io.github.vstory.apperrors.action.GET_APP_TOTAL");
+            context.sendBroadcast(request);
+        } catch (Throwable t) {
+            log("Fetch app total from system server failed", t);
+            if (callback != null) callback.accept(-1);
+        }
     }
 
     

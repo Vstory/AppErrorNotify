@@ -13,8 +13,6 @@ import androidx.core.view.ViewKt;
 
 import io.github.vstory.apperrors.R;
 import io.github.vstory.apperrors.bean.AppErrorsInfoBean;
-import io.github.vstory.apperrors.bean.AppFiltersBean;
-import io.github.vstory.apperrors.bean.enums.AppFiltersType;
 import io.github.vstory.apperrors.data.AppErrorsRecordData;
 import io.github.vstory.apperrors.databinding.ActivityAppErrorsRecordBinding;
 import io.github.vstory.apperrors.databinding.AdapterAppErrorsRecordBinding;
@@ -26,7 +24,6 @@ import io.github.vstory.apperrors.utils.factory.DialogBuilder;
 import io.github.vstory.apperrors.utils.factory.DialogBuilderFactoryKt;
 import io.github.vstory.apperrors.utils.factory.FunctionFactoryKt;
 import io.github.vstory.apperrors.utils.factory.ThreadPoolFactoryKt;
-import io.github.vstory.apperrors.utils.tool.FrameworkTool;
 import io.github.vstory.apperrors.utils.tool.StackTraceShareHelper;
 import io.github.vstory.apperrors.utils.tool.ZipFileTool;
 import io.github.vstory.apperrors.wrapper.BuildConfigWrapper;
@@ -74,9 +71,11 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
             dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
             dlg.setProgressContent(LocaleFactoryKt.getLocale().getGeneratingStatistics());
             dlg.noCancelable();
-            FrameworkTool.fetchAppListData(this, new AppFiltersBean("", AppFiltersType.ALL), apps -> {
+            
+            
+            AppErrorsRecordData.fetchAppTotalFromSystemServer(this, total -> {
                 ThreadPoolFactoryKt.newThread(() -> {
-                    int totalApps = apps.size();
+                    int totalApps = Math.max(total, 0);   
                     Map<String, Integer> countByPkg = new HashMap<>();
                     for (AppErrorsInfoBean bean : listData) {
                         countByPkg.put(bean.packageName, countByPkg.getOrDefault(bean.packageName, 0) + 1);
@@ -84,6 +83,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                     List<Map.Entry<String, Integer>> errorsApps = new ArrayList<>(countByPkg.entrySet());
                     errorsApps.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
                     String mostAppPackageName = errorsApps.isEmpty() ? "" : errorsApps.get(0).getKey();
+                    int mostAppCount = errorsApps.isEmpty() ? 0 : errorsApps.get(0).getValue();
                     Map<String, Integer> countByType = new HashMap<>();
                     for (AppErrorsInfoBean bean : listData) {
                         countByType.put(bean.exceptionClassName, countByType.getOrDefault(bean.exceptionClassName, 0) + 1);
@@ -91,20 +91,24 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                     List<Map.Entry<String, Integer>> typeList = new ArrayList<>(countByType.entrySet());
                     typeList.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
                     String mostErrorsType = typeList.isEmpty() ? "" : simpleThwName(typeList.get(0).getKey());
+                    int mostTypeCount = typeList.isEmpty() ? 0 : typeList.get(0).getValue();
                     float ppt = totalApps > 0 ? ((float) errorsApps.size() * 100f) / (float) totalApps : 0f;
                     String pptCount = FunctionFactoryKt.decimal(ppt, 2);
                     runOnUiThread(() -> {
                         dlg.cancel();
                         DialogBuilderFactoryKt.showDialog_Generics(this, DiaAppErrorsStatisticsBinding.class, false, builder -> {
-                            builder.setTitle(LocaleFactoryKt.getLocale().getAppErrorsStatistics());
+                            builder.setTitle(LocaleFactoryKt.getLocale().getAppErrorsStatisticsReport());
                             DiaAppErrorsStatisticsBinding sb = builder.getBinding();
-                            sb.totalErrorsUnitText.setText(LocaleFactoryKt.getLocale().totalErrorsUnit(listData.size()));
-                            sb.totalAppsUnitText.setText(LocaleFactoryKt.getLocale().totalAppsUnit(totalApps));
-                            sb.mostErrorsAppIcon.setImageDrawable(FunctionFactoryKt.appIconOf(this, mostAppPackageName));
+                            sb.tvCrashCount.setText(String.valueOf(listData.size()));
+                            sb.tvTotalApps.setText(String.valueOf(totalApps));
+                            sb.tvInvolvedApps.setText(String.valueOf(errorsApps.size()));
+                            sb.tvCrashRatio.setText(pptCount + "%");
+                            sb.imgTopAppIcon.setImageDrawable(FunctionFactoryKt.appIconOf(this, mostAppPackageName));
                             String appName = FunctionFactoryKt.appNameOf(this, mostAppPackageName);
-                            sb.mostErrorsAppText.setText(appName.trim().isEmpty() ? mostAppPackageName : appName);
-                            sb.mostErrorsTypeText.setText(mostErrorsType);
-                            sb.totalPptOfErrorsText.setText(pptCount + "%");
+                            sb.tvTopAppName.setText(appName.trim().isEmpty() ? mostAppPackageName : appName);
+                            sb.tvTopAppCount.setText(LocaleFactoryKt.getLocale().getTimesUnit(mostAppCount));
+                            sb.tvTopTypeName.setText(mostErrorsType);
+                            sb.tvTopTypeCount.setText(LocaleFactoryKt.getLocale().getTimesUnit(mostTypeCount));
                             builder.confirmButton(LocaleFactoryKt.getLocale().getGotIt());
                         });
                     });
@@ -177,7 +181,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                     if (onChanged != null) onChanged.run();
                     if (timedOut) {
                         FunctionFactoryKt.toast(AppErrorsRecordActivity.this,
-                                getString(R.string.module_not_fully_activated_tip));
+                                getString(R.string.system_service_not_ready_tip));
                     }
                 });
             }
