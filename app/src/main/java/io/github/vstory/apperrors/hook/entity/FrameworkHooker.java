@@ -629,11 +629,19 @@ public class FrameworkHooker {
         private final Object errors;
         private final Object proc;
         private final Object resultData;
+        
+        private final String foregroundActivity;
 
         AppErrorsProcessData(Object errors, Object proc, Object resultData) {
             this.errors = errors;
             this.proc = proc;
             this.resultData = resultData;
+            this.foregroundActivity = captureForegroundActivity(proc);
+        }
+
+        
+        String foregroundActivity() {
+            return foregroundActivity;
         }
 
         Object pkgList() {
@@ -711,6 +719,89 @@ public class FrameworkHooker {
             Object v = getField(resultData, "repeating");
             return v instanceof Boolean && (Boolean) v;
         }
+    }
+
+    
+    private static String captureForegroundActivity(Object proc) {
+        try {
+            if (proc == null) {
+                logDebug("⑥ capture: proc=null (skip)");
+                return null;
+            }
+            Object wpc = getField(proc, "mWindowProcessController");
+            if (wpc == null) wpc = invokeMethod(proc, "getWindowProcessController");
+            if (wpc == null) {
+                logDebug("⑥ capture: mWindowProcessController not found (skip)");
+                return null;
+            }
+            
+            Object hasVisible = invokeMethod(wpc, "hasVisibleActivities");
+            if (!(hasVisible instanceof Boolean)) {
+                logDebug("⑥ capture: hasVisibleActivities unavailable (skip)");
+                return null;
+            }
+            if (!(Boolean) hasVisible) {
+                logDebug("⑥ capture: no visible activity -> 后台");
+                return ""; 
+            }
+            Object acts = getField(wpc, "mActivities");
+            if (acts instanceof java.util.List) {
+                java.util.List<?> list = (java.util.List<?>) acts;
+                
+                for (int i = list.size() - 1; i >= 0; i--) {
+                    Object r = list.get(i);
+                    if (r == null) continue;
+                    Object vis = invokeMethod(r, "isVisible");
+                    if (vis instanceof Boolean && !(Boolean) vis) continue;
+                    String name = foregroundShortName(r);
+                    if (name != null) {
+                        logDebug("⑥ capture: foreground=" + name);
+                        return name;
+                    }
+                }
+                
+                if (!list.isEmpty()) {
+                    String name = foregroundShortName(list.get(list.size() - 1));
+                    if (name != null) {
+                        logDebug("⑥ capture: foreground(fallback top)=" + name);
+                        return name;
+                    }
+                }
+                logDebug("⑥ capture: visible flag set but no ActivityRecord name resolved -> 后台");
+            } else {
+                logDebug("⑥ capture: mActivities not a List -> 后台");
+            }
+            return ""; 
+        } catch (Throwable t) {
+            logDebug("⑥ capture: exception -> skip\n  " + t);
+            return null; 
+        }
+    }
+
+    
+    private static String foregroundShortName(Object activityRecord) {
+        try {
+            Object cn = getField(activityRecord, "mActivityComponent");
+            if (cn != null) {
+                Object sn = invokeMethod(cn, "getShortClassName");
+                if (sn instanceof String) {
+                    String s = ((String) sn).trim();
+                    if (!s.isEmpty()) return s.startsWith(".") ? s.substring(1) : s;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            Object sc = getField(activityRecord, "shortComponentName");
+            if (sc instanceof String) {
+                String v = ((String) sc).trim();
+                int slash = v.lastIndexOf('/');
+                if (slash >= 0) v = v.substring(slash + 1);
+                return v.startsWith(".") ? v.substring(1) : v;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
     }
 
     
@@ -1029,8 +1120,16 @@ public class FrameworkHooker {
                 logError("AppErrorNotify crashed itself, stackTrace:\n" + info.stackTrace, null);
             }
         }
-        AppErrorsRecordData.add(AppErrorsInfoBean.clone(context, d.pid(), d.userId(),
-                appInfo != null ? appInfo.packageName : null, info));
+        AppErrorsInfoBean bean = AppErrorsInfoBean.clone(context, d.pid(), d.userId(),
+                appInfo != null ? appInfo.packageName : null, info);
+        
+        String fg = d.foregroundActivity();
+        if (fg != null && !fg.isEmpty()) {
+            bean.setRunningActivity(fg);
+        } else if (fg != null) {
+            bean.setBackgroundCrash(true);
+        }
+        AppErrorsRecordData.add(bean);
         
         
         String pkg = d.packageName();

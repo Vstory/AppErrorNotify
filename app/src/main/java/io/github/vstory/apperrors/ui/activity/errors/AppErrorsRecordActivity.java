@@ -63,6 +63,30 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
     
     private final List<AppErrorsInfoBean> listData = new ArrayList<>();
 
+    
+    private final List<Object> displayItems = new ArrayList<>();
+
+    
+    private final Map<String, Boolean> expandedGroups = new HashMap<>();
+
+    
+    private String filterPackage = "";
+
+    
+    private static class CrashGroupItem {
+        final String signature;
+        final AppErrorsInfoBean latest;      
+        final List<AppErrorsInfoBean> members; 
+        boolean expanded;
+
+        CrashGroupItem(String signature, AppErrorsInfoBean latest, List<AppErrorsInfoBean> members, boolean expanded) {
+            this.signature = signature;
+            this.latest = latest;
+            this.members = members;
+            this.expanded = expanded;
+        }
+    }
+
     @Override
     protected void onCreate() {
         binding.titleBackIcon.setOnClickListener(v -> onBackPressed());
@@ -138,24 +162,52 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
         });
         
         BaseAdapterFactoryKt.bindAdapter(binding.listView, creater -> {
-            creater.onBindDatas(() -> listData);
+            creater.onBindDatas(() -> displayItems);
             creater.onBindViews(AdapterAppErrorsRecordBinding.class, (b, position) -> {
-                AppErrorsInfoBean bean = listData.get(position);
-                b.appIcon.setImageDrawable(FunctionFactoryKt.appIconOf(this, bean.packageName));
-                String appName = FunctionFactoryKt.appNameOf(this, bean.packageName);
-                b.appNameText.setText(appName.trim().isEmpty() ? bean.packageName : appName);
-                ViewKt.setVisible(b.appUserIdText, bean.userId > 0);
-                b.appUserIdText.setText(LocaleFactoryKt.getLocale().userId(bean.userId));
-                b.errorsTimeText.setText(bean.getCrossTime());
-                b.errorTypeIcon.setImageResource(bean.isNativeCrash ? R.drawable.ic_cpp : R.drawable.ic_java);
-                b.errorTypeText.setText(bean.isNativeCrash ? "Native crash" : simpleThwName(bean.exceptionClassName));
-                b.errorMsgText.setText(bean.exceptionMessage);
+                Object item = displayItems.get(position);
+                if (item instanceof CrashGroupItem) {
+                    CrashGroupItem group = (CrashGroupItem) item;
+                    AppErrorsInfoBean latest = group.latest;
+                    b.appIcon.setImageDrawable(FunctionFactoryKt.appIconOf(this, latest.packageName));
+                    String appName = FunctionFactoryKt.appNameOf(this, latest.packageName);
+                    b.appNameText.setText(appName.trim().isEmpty() ? latest.packageName : appName);
+                    ViewKt.setVisible(b.appUserIdText, latest.userId > 0);
+                    b.appUserIdText.setText(LocaleFactoryKt.getLocale().userId(latest.userId));
+                    b.errorsTimeText.setText(latest.getCrossTime());
+                    
+                    b.errorTypeIcon.setImageResource(group.expanded ? R.drawable.ic_expand_more : R.drawable.ic_chevron_right);
+                    String groupType = latest.isNativeCrash ? "Native crash" : simpleThwName(latest.exceptionClassName);
+                    b.errorTypeText.setText(groupType + " ×" + group.members.size());
+                    b.errorMsgText.setText(LocaleFactoryKt.getLocale()
+                            .getRecordGroupTipCollapsed(group.members.size()));
+                    if (group.expanded)
+                        b.errorMsgText.setText(LocaleFactoryKt.getLocale()
+                                .getRecordGroupTipExpanded(group.members.size()));
+                } else {
+                    AppErrorsInfoBean bean = (AppErrorsInfoBean) item;
+                    b.appIcon.setImageDrawable(FunctionFactoryKt.appIconOf(this, bean.packageName));
+                    String appName = FunctionFactoryKt.appNameOf(this, bean.packageName);
+                    b.appNameText.setText(appName.trim().isEmpty() ? bean.packageName : appName);
+                    ViewKt.setVisible(b.appUserIdText, bean.userId > 0);
+                    b.appUserIdText.setText(LocaleFactoryKt.getLocale().userId(bean.userId));
+                    b.errorsTimeText.setText(bean.getCrossTime());
+                    b.errorTypeIcon.setImageResource(bean.isNativeCrash ? R.drawable.ic_cpp : R.drawable.ic_java);
+                    b.errorTypeText.setText(bean.isNativeCrash ? "Native crash" : simpleThwName(bean.exceptionClassName));
+                    b.errorMsgText.setText(bean.exceptionMessage);
+                }
             });
         });
         onChanged = () -> ((android.widget.BaseAdapter) binding.listView.getAdapter()).notifyDataSetChanged();
         registerForContextMenu(binding.listView);
-        binding.listView.setOnItemClickListener((parent, view, position, id) ->
-                AppErrorsDetailActivity.Companion.start(this, listData.get(position)));
+        binding.listView.setOnItemClickListener((parent, view, position, id) -> {
+            Object item = displayItems.get(position);
+            if (item instanceof CrashGroupItem) toggleGroup((CrashGroupItem) item);
+            else AppErrorsDetailActivity.Companion.start(this, (AppErrorsInfoBean) item);
+        });
+        binding.filterBarView.setOnClickListener(v -> {
+            filterPackage = "";
+            buildDisplay();
+        });
     }
 
     
@@ -169,16 +221,15 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                 final boolean timedOut = intent != null
                         && "io.github.vstory.apperrors.action.ERRORS_TIMEOUT".equals(intent.getAction());
                 runOnUiThread(() -> {
-                    binding.titleCountText.setText(LocaleFactoryKt.getLocale().recordCount(all.size()));
                     ViewKt.setVisible(binding.listProgressView, false);
-                    ViewKt.setVisible(binding.appErrorSisIcon, all.size() >= 5);
-                    ViewKt.setVisible(binding.clearAllIcon, !all.isEmpty());
-                    ViewKt.setVisible(binding.exportAllIcon, !all.isEmpty());
-                    ViewKt.setVisible(binding.listView, !all.isEmpty());
-                    ViewKt.setVisible(binding.listNoDataView, all.isEmpty());
                     listData.clear();
                     listData.addAll(all);
-                    if (onChanged != null) onChanged.run();
+                    
+                    ViewKt.setVisible(binding.appErrorSisIcon, listData.size() >= 5);
+                    ViewKt.setVisible(binding.clearAllIcon, !listData.isEmpty());
+                    ViewKt.setVisible(binding.exportAllIcon, !listData.isEmpty());
+                    
+                    buildDisplay();
                     if (timedOut) {
                         FunctionFactoryKt.toast(AppErrorsRecordActivity.this,
                                 getString(R.string.system_service_not_ready_tip));
@@ -186,6 +237,75 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                 });
             }
         });
+    }
+
+    
+    private void buildDisplay() {
+        displayItems.clear();
+        
+        java.util.List<AppErrorsInfoBean> visible = new ArrayList<>();
+        for (AppErrorsInfoBean b : listData) {
+            if (filterPackage.isEmpty() || filterPackage.equals(b.packageName)) visible.add(b);
+        }
+        
+        java.util.Set<String> consumed = new java.util.HashSet<>();
+        for (int i = 0; i < visible.size(); i++) {
+            AppErrorsInfoBean b = visible.get(i);
+            String sig = crashSignature(b);
+            if (sig == null || consumed.contains(sig)) {
+                
+                if (sig == null) displayItems.add(b);
+                continue;
+            }
+            java.util.List<AppErrorsInfoBean> members = new ArrayList<>();
+            for (int j = i; j < visible.size(); j++) {
+                AppErrorsInfoBean c = visible.get(j);
+                if (sig.equals(crashSignature(c))) members.add(c);
+            }
+            consumed.add(sig);
+            if (members.size() == 1) { displayItems.add(b); continue; } 
+            boolean expanded = Boolean.TRUE.equals(expandedGroups.get(sig));
+            displayItems.add(new CrashGroupItem(sig, members.get(0), members, expanded));
+            if (expanded) displayItems.addAll(members); 
+        }
+        
+        int visibleCount = 0;
+        for (Object o : displayItems) visibleCount += (o instanceof CrashGroupItem)
+                ? ((CrashGroupItem) o).members.size() : 1;
+        binding.titleCountText.setText(LocaleFactoryKt.getLocale().recordCount(visibleCount));
+        ViewKt.setVisible(binding.listView, !displayItems.isEmpty());
+        ViewKt.setVisible(binding.listNoDataView, displayItems.isEmpty());
+        boolean filtering = !filterPackage.isEmpty();
+        ViewKt.setVisible(binding.filterBarView, filtering);
+        if (filtering) {
+            String appName = FunctionFactoryKt.appNameOf(this, filterPackage);
+            binding.filterBarView.setText(LocaleFactoryKt.getLocale().getRecordFilterBar(
+                    appName.trim().isEmpty() ? filterPackage : appName));
+        }
+        if (onChanged != null) onChanged.run();
+    }
+
+    
+    private void toggleGroup(CrashGroupItem group) {
+        expandedGroups.put(group.signature, !group.expanded);
+        buildDisplay();
+    }
+
+    
+    private String crashSignature(AppErrorsInfoBean b) {
+        if (b == null) return null;
+        if (b.isNativeCrash) {
+            String msg = b.exceptionMessage == null ? "" : b.exceptionMessage.trim();
+            if (msg.isEmpty()) return null;
+            String norm = msg.replaceAll("(?i)0x[0-9a-f]+", "0x?").replaceAll("\\s+", " ").trim();
+            if (norm.length() > 120) norm = norm.substring(0, 120);
+            return b.packageName + "|N|" + norm;
+        }
+        String cls = b.exceptionClassName == null ? "" : b.exceptionClassName.trim();
+        if (cls.isEmpty()) return null;
+        String file = b.throwFileName == null ? "" : b.throwFileName;
+        String method = b.throwMethodName == null ? "" : b.throwMethodName;
+        return b.packageName + "|J|" + cls + "|" + file + "|" + method;
     }
 
     
@@ -247,20 +367,33 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
     public boolean onContextItemSelected(MenuItem item) {
         if (item.getMenuInfo() instanceof AdapterView.AdapterContextMenuInfo) {
             AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
+            if (info.position < 0 || info.position >= displayItems.size()) return super.onContextItemSelected(item);
+            Object obj = displayItems.get(info.position);
+            AppErrorsInfoBean bean = obj instanceof CrashGroupItem ? ((CrashGroupItem) obj).latest : (AppErrorsInfoBean) obj;
             if (item.getItemId() == R.id.aerrors_view_detail) {
-                AppErrorsDetailActivity.Companion.start(this, listData.get(info.position));
+                
+                if (obj instanceof CrashGroupItem) toggleGroup((CrashGroupItem) obj);
+                else AppErrorsDetailActivity.Companion.start(this, bean);
             } else if (item.getItemId() == R.id.aerrors_app_info) {
-                FunctionFactoryKt.openSelfSetting(this, listData.get(info.position).packageName);
+                FunctionFactoryKt.openSelfSetting(this, bean.packageName);
+            } else if (item.getItemId() == R.id.aerrors_filter_by_app) {
+                filterPackage = bean.packageName;
+                buildDisplay();
             } else if (item.getItemId() == R.id.aerrors_remove_record) {
-                DialogBuilder<?> dlg = new DialogBuilder<>(this);
-                dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
-                dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureRemoveRecord());
-                dlg.confirmButton(() -> {
-                    AppErrorsRecordData.requestRemove(this, listData.get(info.position));
-                    refreshData();
-                });
-                dlg.cancelButton();
-                dlg.show();
+                if (obj instanceof CrashGroupItem) {
+                    
+                    FunctionFactoryKt.toast(this, LocaleFactoryKt.getLocale().getRecordGroupDeleteHint());
+                } else {
+                    DialogBuilder<?> dlg = new DialogBuilder<>(this);
+                    dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
+                    dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureRemoveRecord());
+                    dlg.confirmButton(() -> {
+                        AppErrorsRecordData.requestRemove(this, bean);
+                        refreshData();
+                    });
+                    dlg.cancelButton();
+                    dlg.show();
+                }
             }
         }
         return super.onContextItemSelected(item);

@@ -209,6 +209,17 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         bindCopyLabel(binding.errorLineNumberLabel, binding.errorLineNumberText);
         bindCopyLabel(binding.errorRecordTimeLabel, binding.errorRecordTimeText);
         
+        String runningPage = appErrorsInfo.getRunningActivity();
+        boolean hasPageRow = (runningPage != null && !runningPage.trim().isEmpty()) || appErrorsInfo.isBackgroundCrash();
+        ViewKt.setGone(binding.errorPageRow, !hasPageRow);
+        if (hasPageRow) {
+            binding.errorPageText.setText(runningPage != null && !runningPage.trim().isEmpty()
+                    ? runningPage.trim()
+                    : LocaleFactoryKt.getLocale().getErrorPageBackground());
+            bindCopyValue(binding.errorPageText);
+            bindCopyLabel(binding.errorPageLabel, binding.errorPageText);
+        }
+        
         binding.stackCopyButton.setOnClickListener(v -> {
             FunctionFactoryKt.copyToClipboardMarkdown(this, appErrorsInfo.stackTrace);
         });
@@ -217,9 +228,10 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         binding.appPanelScrollView.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
             @Override
             public void onScrollChange(android.view.View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
+                
                 String n = FunctionFactoryKt.appNameOf(AppErrorsDetailActivity.this, appErrorsInfo.packageName);
                 binding.detailTitleText.setText(scrollY >= FunctionFactoryKt.dp(30, AppErrorsDetailActivity.this)
-                        ? (n.trim().isEmpty() ? appErrorsInfo.packageName : n) : LocaleFactoryKt.getLocale().getAppName());
+                        ? (n.trim().isEmpty() ? appErrorsInfo.packageName : n) : LocaleFactoryKt.getLocale().getErrorDetailView());
             }
         });
         return true;

@@ -57,6 +57,9 @@ public class ModuleAppLocale {
     public String getTimesUnit(int p0) { return str(R.string.times_unit, p0); }
     public String getAppErrorsTip() { return str(R.string.app_errors_tip); }
     public String getAppName() { return str(R.string.app_name); }
+    public String getErrorDetailView() { return str(R.string.error_detail_view); }
+    public String getErrorPage() { return str(R.string.error_page); }
+    public String getErrorPageBackground() { return str(R.string.error_page_background); }
     public String getAreYouSureClearErrors() { return str(R.string.are_you_sure_clear_errors); }
     public String getAreYouSureExportAllErrors() { return str(R.string.are_you_sure_export_all_errors); }
     public String getAreYouSureRemoveRecord() { return str(R.string.are_you_sure_remove_record); }
@@ -141,6 +144,11 @@ public class ModuleAppLocale {
     public String muteIfRestartTip(String p0) { return str(R.string.mute_if_restart_tip, p0); }
     public String muteIfUnlockTip(String p0) { return str(R.string.mute_if_unlock_tip, p0); }
     public String recordCount(int p0) { return str(R.string.record_count, p0); }
+    public String getRecordGroupTipCollapsed(int p0) { return str(R.string.record_group_tip_collapsed, p0); }
+    public String getRecordGroupTipExpanded(int p0) { return str(R.string.record_group_tip_expanded, p0); }
+    public String getRecordFilterBar(String p0) { return str(R.string.record_filter_bar, p0); }
+    public String getFilterOnlyThisApp() { return str(R.string.filter_only_this_app); }
+    public String getRecordGroupDeleteHint() { return str(R.string.record_group_delete_hint); }
     public String resultCount(int p0) { return str(R.string.result_count, p0); }
     public String systemVersion(String p0) { return str(R.string.system_version, p0); }
     public String totalAppsUnit(int p0) { return str(R.string.total_apps_unit, p0); }

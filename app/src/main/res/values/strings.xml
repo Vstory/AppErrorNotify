@@ -1,10 +1,11 @@
 <resources>
     <string name="app_name">AppErrorNotify</string>
-    <string name="xposed_desc">Capture app crashes and ANR as system notifications, record error history, ignore per-app.</string>
+    <string name="xposed_desc">Capture app crashes as system notifications, record error history, ignore per-app.</string>
     <string name="empty_lable" translatable="false" />
     <string name="app_info">App Info</string>
     <string name="reopen_app">Reopen App</string>
     <string name="error_detail">Error Detail</string>
+    <string name="error_detail_view">Error Detail</string>
     <string name="mute_if_unlock">Mute until device unlocks</string>
     <string name="mute_if_restart">Mute until device restarts</string>
     <string name="close_app">Close App</string>
@@ -23,6 +24,8 @@
     <string name="error_throw_method">Throw Method</string>
     <string name="error_line_number">Line Number</string>
     <string name="error_record_time">Record Time</string>
+    <string name="error_page">Page</string>
+    <string name="error_page_background">Background</string>
     <string name="copied">Copied</string>
     <string name="copy_fail">Copy failed</string>
     <string name="print_to_logcat">Print to logcat</string>
@@ -161,6 +164,11 @@
     <string name="latest_version_tip">Released on %1$s\n\nChangelog\n\n%2$s</string>
     <string name="update_now">Update</string>
     <string name="record_count">%1$s records found</string>
+    <string name="record_group_tip_collapsed">%1$d identical crashes · tap to expand</string>
+    <string name="record_group_tip_expanded">%1$d identical crashes · tap to collapse</string>
+    <string name="record_filter_bar">Only %1$s · tap to cancel</string>
+    <string name="filter_only_this_app">Only this app\'s crashes</string>
+    <string name="record_group_delete_hint">Expand the group first, then long-press a single record to delete it</string>
     <string name="ci_notice_dialog_title">CI Auto Build Instruction</string>
     <string name="ci_notice_dialog_content">You are using a CI automated build with Commit ID %1$s.\n\nIt is automatically triggered and built after the code is committed, automatically compiled and released, and has not been tested for stability, use it at your own risk.</string>
     <string name="app_target_sdk" translatable="false">Target %1$s</string>
@@ -174,7 +182,7 @@
     <string name="stack_trace_share_other">Other Requirement</string>
     <string name="share_with_file">Share errors stacktrace with file</string>
     <string name="share_with_file_tip">Share errors stacktrace using files instead of text</string>
-    <string name="module_desc">Capture app crashes / ANR and show them as system notifications, record error history, per-app configurable.</string>
+    <string name="module_desc">Capture app crashes and show them as system notifications, record error history, per-app configurable.</string>
     <string name="about_title">About</string>
     <string name="about_desc">This module is adapted from AppErrorsTracking on LSPosed API 102, with slight differences in details such as using notifications instead of dialogs and an adjusted upload policy.</string>
     <string name="about_link_tip">Tap to open the original project on GitHub</string>

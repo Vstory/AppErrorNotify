@@ -37,6 +37,8 @@ public class AppErrorsInfoBean implements Serializable {
     @SerializedName("throwMethodName") public String throwMethodName = "";
     @SerializedName("throwLineNumber") public int throwLineNumber = -1;
     @SerializedName("stackTrace") public String stackTrace = "";
+    @SerializedName("runningActivity") public String runningActivity = "";
+    @SerializedName("isBackgroundCrash") public boolean isBackgroundCrash = false;
     @SerializedName("timestamp") public long timestamp = -1L;
 
     public AppErrorsInfoBean() {
@@ -159,10 +161,22 @@ public class AppErrorsInfoBean implements Serializable {
                 + "\n[CPU ABI]: " + (isBlank(cpuAbi) ? "none" : cpuAbi)
                 + "\n[Package Name]: " + by(packageName, sPackageName)
                 + "\n[Version]: " + versionText()
+                + pageLine()
                 + "\n[SDK]: target " + (targetSdk != -1 ? targetSdk : "unknown") + " / min " + (minSdk != -1 ? minSdk : "unknown")
                 + "\n[Error Type]: " + (isNativeCrash ? "Native" : "JVM")
                 + "\n[Crash Time]: " + getUtcTime()
                 + "\n[Stack Trace]:\n" + stackTrace;
+    }
+
+    
+    private String pageLine() {
+        if (runningActivity != null && !runningActivity.trim().isEmpty()) {
+            return "[Page]: " + runningActivity.trim();
+        }
+        if (isBackgroundCrash) {
+            return "[Page]: " + LocaleFactoryKt.getLocale().getErrorPageBackground();
+        }
+        return "";
     }
 
     
@@ -214,6 +228,10 @@ public class AppErrorsInfoBean implements Serializable {
     public void setThrowLineNumber(int throwLineNumber) { this.throwLineNumber = throwLineNumber; }
     public String getStackTrace() { return stackTrace; }
     public void setStackTrace(String stackTrace) { this.stackTrace = stackTrace; }
+    public String getRunningActivity() { return runningActivity; }
+    public void setRunningActivity(String runningActivity) { this.runningActivity = runningActivity; }
+    public boolean isBackgroundCrash() { return isBackgroundCrash; }
+    public void setBackgroundCrash(boolean backgroundCrash) { isBackgroundCrash = backgroundCrash; }
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 }
