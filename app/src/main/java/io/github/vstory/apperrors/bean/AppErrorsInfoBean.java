@@ -170,13 +170,15 @@ public class AppErrorsInfoBean implements Serializable {
 
     
     private String pageLine() {
+        String page;
         if (runningActivity != null && !runningActivity.trim().isEmpty()) {
-            return "[Page]: " + runningActivity.trim();
+            page = runningActivity.trim();
+        } else if (isBackgroundCrash) {
+            page = LocaleFactoryKt.getLocale().getErrorPageBackground();
+        } else {
+            return "";
         }
-        if (isBackgroundCrash) {
-            return "[Page]: " + LocaleFactoryKt.getLocale().getErrorPageBackground();
-        }
-        return "";
+        return "\n[Page]: " + page;
     }
 
     
