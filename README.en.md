@@ -2,7 +2,7 @@
 
 > **🌐 English · [简体中文](README.md)**
 
-An Android crash tracking module (LSPosed / EDXposed) that intercepts app crashes, surfaces them as **system notifications**, records their history, and lets you configure the presentation per app.
+An Android crash tracking module (based on LSPosed) that intercepts app crashes, surfaces them as **system notifications**, records their history, and lets you configure the presentation per app.
 
 Rebuilt in pure Java on [libxposed API 102](https://github.com/LSPosed/LSPosed) (upstream: [KitsunePie/AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking), originally Kotlin + YukiHookAPI).
 
@@ -46,7 +46,7 @@ Rebuilt in pure Java on [libxposed API 102](https://github.com/LSPosed/LSPosed) 
 | App config template | Set the crash presentation per app (below) |
 | Muted apps | View and un-mute ignored apps |
 | Quick Settings tile | System quick-settings tile that opens the crash history directly |
-| Hide launcher icon | The module stays reachable from inside LSPosed / EDXposed |
+| Hide launcher icon | The module stays reachable from inside LSPosed |
 
 ### ⚙️ Per-app Presentation
 

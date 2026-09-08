@@ -2,7 +2,7 @@
 
 > **🌐 [English](README.en.md) · 简体中文**
 
-拦截应用崩溃并以**系统通知**方式捕获展示、记录异常历史、支持按应用配置展示方式的 Android 崩溃跟踪模块（LSPosed / EDXposed）。
+拦截应用崩溃并以**系统通知**方式捕获展示、记录异常历史、支持按应用配置展示方式的 Android 崩溃跟踪模块（基于 LSPosed）。
 
 基于上游 [KitsunePie/AppErrorsTracking](https://github.com/KitsunePie/AppErrorsTracking)，用 **libxposed API 102** 纯 Java 重构（原版 Kotlin + YukiHookAPI）。
 
@@ -46,7 +46,7 @@
 | 应用配置模板 | 按应用单独设置崩溃展示方式（见下） |
 | 被忽略应用 | 查看并恢复已静音的应用 |
 | 快速设置磁贴 | 系统快捷开关，点击直达异常记录 |
-| 隐藏桌面图标 | 隐藏后在 LSPosed / EDXposed 内仍可进入模块 |
+| 隐藏桌面图标 | 隐藏后在 LSPosed 内仍可进入模块 |
 
 ### ⚙️ 按应用配置展示方式
 
