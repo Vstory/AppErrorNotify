@@ -13,10 +13,20 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 模块内存日志（替代 YukiHookAPI YLog） */
+/**
+ * 模块内存日志（替代 YukiHookAPI YLog）。
+ *
+ * ⚠️ 存储形态（2026-09-30 A1 收口）：日志**只归本进程私有文件**（{@link #LOCAL_PREFS_NAME}），
+ *    不再往框架侧 RemotePreferences 写第二份。三条理由：
+ *    ① 那份没有**跨进程读者** —— system_server 侧从不初始化本类的 prefs（恒为 null），
+ *       它的日志只存内存、由 UI 经广播拉取（见 LoggerActivity.refreshData）⇒ 写过去纯属开销；
+ *    ② libxposed 的 RemotePreferences.apply() 是**后台线程异步提交**（详见 api102开发实战 §24.1）
+ *       ⇒「点完打印堆栈立刻清后台」会丢写，且失败被 catch 吞掉、不留任何线索；
+ *    ③ 更糟：绑定那一刻会把这份**旧账**读回来覆盖内存里的日志（init → load）⇒ 日志页表现为
+ *       「先显示本地这份、绑上后突然跳变、少掉几条（正是绑前刚记的）」。去掉这条路径后**结构性消失**。
+ *    ⇒ 因此本类**不再提供** init(SharedPreferences) 重载：拿不到框架侧存储，就不可能再写过去。
+ */
 public class ModuleLogger {
-
-    public static final String PREFS_GROUP = "app_errors_logs";
 
     private static final String LOCAL_PREFS_NAME = "io.github.vstory.apperrors_logs";
 
@@ -59,13 +69,7 @@ public class ModuleLogger {
 
     private static final List<LogData> inMemory = new ArrayList<>();
 
-    /** system_server / UI 初始化 */
-    public static void init(SharedPreferences prefs) {
-        ModuleLogger.prefs = prefs;
-        load();
-    }
-
-    /** UI 本地 fallback 初始化 */
+    /** 本地存储初始化（日志恒用本进程私有文件；见类注释） */
     public static void init(Context context) {
         prefs = context.getSharedPreferences(LOCAL_PREFS_NAME, Context.MODE_PRIVATE);
         load();
@@ -125,7 +129,17 @@ public class ModuleLogger {
         try {
             List<LogData> list;
             synchronized (inMemory) { list = new ArrayList<>(inMemory); }
-            if (prefs != null) prefs.edit().putString(KEY_LOGS, gson.toJson(list)).apply();
+            SharedPreferences p = prefs;
+            if (p == null) return;
+            /**
+             * ⚠️ 这里用 apply() 是**正解**，不要照搬 ConfigData 那条「写必须 commit()」的铁律：
+             *    那条铁律针对的是 libxposed 的 RemotePreferences（apply 丢后台线程、进程被杀就丢）；
+             *    **本地文件** prefs 的 apply() 由 Android 自己兜底（QueuedWork 会在界面/组件停止时等它落盘），
+             *    而 commit() 会把「整份日志的序列化 + 落盘」搬到调用线程 —— log() 会被 UI 线程调用
+             *    （打印堆栈按钮就在 UI 线程），日志含整条堆栈、上限 200 条，攒满时是几百 KB 级 JSON
+             *    ⇒ 反而凭空制造卡顿。故此处保持 apply()。
+             */
+            p.edit().putString(KEY_LOGS, gson.toJson(list)).apply();
         } catch (Exception ignored) {
         }
     }

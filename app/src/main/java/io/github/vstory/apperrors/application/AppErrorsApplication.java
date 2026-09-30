@@ -72,7 +72,12 @@ public class AppErrorsApplication extends Application implements XposedServiceHe
          */
         ConfigData.initService(service);
         MutedErrorsData.initService(service);
-        ModuleLogger.init(service.getRemotePreferences(ModuleLogger.PREFS_GROUP));
+        /**
+         * ⚠️ 这里**故意不初始化 ModuleLogger**（日志恒用本进程私有文件）：
+         *    框架侧那份日志没有跨进程读者（system_server 侧 prefs 恒为 null，只存内存、UI 经广播拉），
+         *    写了白写；而且 apply() 会丢、绑定这一刻还会把**旧账**读回来覆盖内存日志（日志页跳变）。
+         *    详见 ModuleLogger 类注释（2026-09-30 A1）。
+         */
         /** 通知监听器（此时存储已就绪） */
         ModuleServiceHolder.onServiceBind(service);
         /** 一次性迁移：旧"对话框"配置 → 跟随全局（纯通知版废弃 DIALOG；迁移后广播通知 system_server 刷新） */
