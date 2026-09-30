@@ -38,23 +38,27 @@ public class AppErrorsApplication extends Application implements XposedServiceHe
 
     @Override
     public void onServiceBind(XposedService service) {
-        ModuleServiceHolder.onServiceBind(service);
-        /** 切换配置到 RemotePreferences（system_server 侧只读，UI 侧可写，用于配置） */
+        /**
+         * ⚠️ 顺序：**先绑存储（RemotePreferences = 权威）→ 再通知监听器**。
+         * 监听器（Activity 的 serviceStateListener）会按当前存储重放一次 UI 状态；
+         * 若先通知，重放时 ConfigData 还指着本地镜像，界面会被"回放"成旧值。
+         */
         ConfigData.initService(service);
+        MutedErrorsData.initService(service);
+        ModuleLogger.init(service.getRemotePreferences(ModuleLogger.PREFS_GROUP));
+        /** 通知监听器（此时存储已就绪） */
+        ModuleServiceHolder.onServiceBind(service);
         /** 一次性迁移：旧"对话框"配置 → 跟随全局（纯通知版废弃 DIALOG；迁移后广播通知 system_server 刷新） */
         AppErrorsConfigData.migrateDialogConfigToGlobalIfNeeded();
         AppErrorsConfigData.notifyConfigChanged(getApplicationContext());
-        /** 异常记录：UI 进程经广播从 system_server 拉取（不能直读 /data/misc 文件，权限不足） */
-        MutedErrorsData.initService(service);
-        ModuleLogger.init(service.getRemotePreferences(ModuleLogger.PREFS_GROUP));
     }
 
     @Override
     public void onServiceDied(XposedService service) {
-        ModuleServiceHolder.onServiceDied(service);
-        /** 回退本地存储 */
+        /** ⚠️ 顺序：先回退存储（本地镜像）→ 再通知监听器 */
         ConfigData.init(this);
         MutedErrorsData.init(this);
         ModuleLogger.init(this);
+        ModuleServiceHolder.onServiceDied(service);
     }
 }

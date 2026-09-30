@@ -116,6 +116,27 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         /** 信息卡：填充设备/框架信息（参考 LSPosed 概览页 info_card） */
         initInfoCard();
         refreshInfoCard();
+        /** 配置驱动的控件状态再对齐一次（冷启动时 service 可能还没绑上，读到的是本地镜像） */
+        syncConfigDrivenUi();
+    }
+
+    /**
+     * 重放一次「配置驱动」的 UI 状态。
+     *
+     * 冷启动时 `ConfigData` 在 XposedService 绑定前读的是本地镜像，绑定后以 remote 为权威；
+     * service 绑定/断开（`serviceStateListener`）时调用本方法，把界面与当前权威存储对齐——
+     * 否则会出现"设置明明存住了，界面却显示默认值"（清单里 4 个开关 + 忽略行为行）。
+     */
+    private void syncConfigDrivenUi() {
+        // setChecked 不会回调保存：CompoundButtonFactoryKt.bind 的监听器带 btn.isPressed() 守卫
+        binding.onlyShowErrorsInFrontSwitch.setChecked(ConfigData.isEnableOnlyShowErrorsInFront());
+        binding.onlyShowErrorsInMainProcessSwitch.setChecked(ConfigData.isEnableOnlyShowErrorsInMain());
+        binding.shareWithFile.setChecked(ConfigData.isShareWithFile());
+        binding.enableAppsConfigsTemplateSwitch.setChecked(ConfigData.isEnableAppConfigTemplate());
+        ViewKt.setVisible(binding.mgrAppsConfigsTemplateButton, ConfigData.isEnableAppConfigTemplate());
+        refreshMuteIgnoreBehaviorText();
+        // 桌面图标开关的取值来自 PackageManager（与偏好存储无关），一并重放保持一致
+        binding.hideIconInLauncherSwitch.setChecked(!FunctionFactoryKt.isLauncherIconShowing(this));
     }
 
     /** 点击标题文本5次切换界面语言：仅系统语言为中文时生效（类似彩蛋，限定标题文本区域） */
@@ -326,6 +347,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
             isModuleValied = service != null;
             refreshModuleStatus();
             refreshInfoCard();
+            /** service 绑定/断开后存储源变了（remote ↔ 本地镜像）→ 重放配置驱动的控件状态 */
+            syncConfigDrivenUi();
         });
     };
 }
