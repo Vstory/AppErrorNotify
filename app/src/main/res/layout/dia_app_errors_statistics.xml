@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-
+<!-- 异常统计报告弹窗（摘要卡片式，2026-09-05 重设计）：
+     顶部 2×2 数字格（崩溃次数 / 应用总数 / 涉及应用 / 崩溃占比）
+     下方两个亮点卡（崩溃最多的应用 / 崩溃最多的类型）
+     配色引用 @color/colorStackBackground 等（已适配 values-night 深色） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -11,7 +14,7 @@
     android:paddingBottom="4dp"
     tools:ignore="ContentDescription,SmallSp">
 
-    
+    <!-- 第一行数字格：崩溃次数 / 应用总数 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -76,7 +79,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    
+    <!-- 第二行数字格：涉及应用 / 崩溃占比 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -141,7 +144,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    
+    <!-- 崩溃最多的应用 -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -192,7 +195,7 @@
             tools:text="5 次" />
     </LinearLayout>
 
-    
+    <!-- 崩溃最多的类型 -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

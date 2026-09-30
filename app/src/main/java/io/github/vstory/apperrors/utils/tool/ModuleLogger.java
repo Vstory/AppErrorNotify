@@ -1,4 +1,6 @@
-
+/*
+ * AppErrorsTracking (api102 重构版) - 模块内存日志 (Java 化)
+ */
 package io.github.vstory.apperrors.utils.tool;
 
 import android.content.Context;
@@ -11,7 +13,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 
-
+/** 模块内存日志（替代 YukiHookAPI YLog） */
 public class ModuleLogger {
 
     public static final String PREFS_GROUP = "app_errors_logs";
@@ -20,10 +22,10 @@ public class ModuleLogger {
 
     private static final String KEY_LOGS = "logs";
 
-    
+    /** 内存保留条数上限 */
     private static final int MAX_LOGS = 200;
 
-    
+    /** 日志数据 */
     public static class LogData implements java.io.Serializable {
         public String priority;
         public String tag;
@@ -57,19 +59,19 @@ public class ModuleLogger {
 
     private static final List<LogData> inMemory = new ArrayList<>();
 
-    
+    /** system_server / UI 初始化 */
     public static void init(SharedPreferences prefs) {
         ModuleLogger.prefs = prefs;
         load();
     }
 
-    
+    /** UI 本地 fallback 初始化 */
     public static void init(Context context) {
         prefs = context.getSharedPreferences(LOCAL_PREFS_NAME, Context.MODE_PRIVATE);
         load();
     }
 
-    
+    /** 记录日志 */
     public static void log(String priority, String tag, String msg, Throwable e) {
         LogData data = new LogData(priority, tag, msg != null ? msg : "", e != null ? e.toString() : null, System.currentTimeMillis());
         synchronized (inMemory) {
@@ -79,20 +81,20 @@ public class ModuleLogger {
         persist();
     }
 
-    
+    /** 获取全部日志（内存顺序） */
     public static List<LogData> allData() {
         synchronized (inMemory) {
             return new ArrayList<>(inMemory);
         }
     }
 
-    
+    /** 清空日志 */
     public static void clear() {
         synchronized (inMemory) { inMemory.clear(); }
         persist();
     }
 
-    
+    /** 导出文本 */
     public static String contents(List<LogData> data) {
         if (data == null) data = allData();
         StringBuilder sb = new StringBuilder();
@@ -128,12 +130,17 @@ public class ModuleLogger {
         }
     }
 
-    
+    /** 广播 action：UI 请求日志 / system_server 回传日志 */
     public static final String ACTION_GET_LOGS = "io.github.vstory.apperrors.action.GET_LOGS";
     public static final String ACTION_LOGS_RESULT = "io.github.vstory.apperrors.action.LOGS_RESULT";
     public static final String EXTRA_LOGS = "logs";
 
-    
+    /**
+     * UI 进程读取：经广播从 system_server 拉取模块日志（system_server 侧日志只存内存/RemotePreferences 只读，
+     *  UI 进程无法直读，必须经 system_server 广播回传）
+     * @param context UI Context
+     * @param callback 收到日志后的回调（可能在非主线程）
+     */
     public static void fetchFromSystemServer(final android.content.Context context,
                                              final Runnable callback) {
         try {
@@ -146,8 +153,8 @@ public class ModuleLogger {
                         ctx.unregisterReceiver(this);
                     } catch (Throwable ignored) {
                     }
-                    
-                    
+                    // ⚠️ SDK 33+ (targetSdk=37) getSerializableExtra(String) 旧签名可能因 ClassLoader 加载失败返回 null
+                    //    → 用新签名 getSerializableExtra(String, Class) 兼容（内联，避免与本项目 FunctionFactoryKt 循环依赖）
                     Object extra = null;
                     if (intent != null) {
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -156,8 +163,8 @@ public class ModuleLogger {
                             extra = intent.getSerializableExtra(EXTRA_LOGS);
                         }
                     }
-                    
-                    
+                    // ⚠️ 知识库规范: 接收端判断集合用 instanceof java.util.List 勿用 ArrayList
+                    //   (CopyOnWriteArrayList 非 ArrayList 子类, 用 ArrayList 会误判 false)
                     if (extra instanceof java.util.List) {
                         java.util.List<?> raw = (java.util.List<?>) extra;
                         java.util.ArrayList<LogData> remote = new java.util.ArrayList<>();

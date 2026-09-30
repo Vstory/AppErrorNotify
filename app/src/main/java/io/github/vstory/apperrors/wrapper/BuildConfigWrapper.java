@@ -1,9 +1,11 @@
-
+/*
+ * AppErrorsTracking - 对 BuildConfig 的包装 (Java 化)
+ */
 package io.github.vstory.apperrors.wrapper;
 
 import io.github.vstory.apperrors.BuildConfig;
 
-
+/** 对 {@link BuildConfig} 的包装 */
 public class BuildConfigWrapper {
 
     public static final String APPLICATION_ID = BuildConfig.APPLICATION_ID;

@@ -1,4 +1,6 @@
-
+/*
+ * AppErrorsTracking (api102 重构版) - 全局配置存储控制类 (Java 化)
+ */
 package io.github.vstory.apperrors.data;
 
 import android.content.Context;
@@ -9,16 +11,18 @@ import io.github.vstory.apperrors.data.enums.AppErrorsConfigType;
 
 import java.util.Set;
 
-
+/**
+ * 全局配置存储控制类（api102 RemotePreferences，system_server 与模块 UI 同源）
+ */
 public class ConfigData {
 
-    
+    /** RemotePreferences 组名 */
     public static final String PREFS_GROUP = "app_errors_config";
 
-    
+    /** UI 本地 fallback 文件名 */
     private static final String LOCAL_PREFS_NAME = "io.github.vstory.apperrors_preferences";
 
-    
+    // ===== 键值名称（与原版一致） =====
     private static final String KEY_SHOW_DEVELOPER_NOTICE = "_show_developer_notice";
     private static final String KEY_ENABLE_MATERIAL3_STYLE_DIALOG = "_enable_material3_style_dialog";
     private static final String KEY_ENABLE_ONLY_SHOW_ERRORS_IN_FRONT = "_enable_only_show_errors_in_front";
@@ -32,43 +36,43 @@ public class ConfigData {
     private static final String KEY_MUTE_IGNORE_UNTIL_REBOOT = "_mute_ignore_until_reboot";
     private static final String KEY_ENABLE_DEBUG = "_enable_debug";
 
-    
+    /** 远程偏好（system_server / service 连接后的 UI） */
     private static SharedPreferences remotePrefs;
 
-    
+    /** UI 本地上下文（fallback） */
     private static Context uiContext;
 
-    
+    /** 当前生效存储 */
     private static SharedPreferences current() {
         if (remotePrefs != null) return remotePrefs;
         if (uiContext != null) return uiContext.getSharedPreferences(LOCAL_PREFS_NAME, Context.MODE_PRIVATE);
         return null;
     }
 
-    
+    /** system_server 初始化（RemotePreferences） */
     public static void init(SharedPreferences prefs) {
         remotePrefs = prefs;
     }
 
-    
+    /** 模块 UI 初始化（service 连接前 fallback 本地） */
     public static void init(Context context) {
         uiContext = context.getApplicationContext();
-        
+        // 对齐原版：init 时加载应用配置模板集合，避免后续 putAppShowingType 操作空集合导致配置丢失
         AppErrorsConfigData.refresh();
     }
 
-    
+    /** 模块 UI 连接 XposedService 后切换到远程存储 */
     public static void initService(io.github.libxposed.service.XposedService service) {
         remotePrefs = service.getRemotePreferences(PREFS_GROUP);
-        
+        // 对齐原版：切换远程存储后重新加载应用配置模板集合，保证 UI 显示/操作基于最新数据
         AppErrorsConfigData.refresh();
     }
 
-    
+    /** 刷新存储控制类（直读模式，占位兼容） */
     public static void refresh() {
     }
 
-    
+    // ===== 底层键值操作（internal） =====
     public static Set<String> getStringSet(String key) {
         SharedPreferences p = current();
         return p != null ? p.getStringSet(key, new java.util.HashSet<String>()) : new java.util.HashSet<String>();
@@ -78,7 +82,7 @@ public class ConfigData {
         SharedPreferences p = current();
         if (p != null) {
             try { p.edit().putStringSet(key, value).apply(); }
-            catch (Throwable ignored) {  }
+            catch (Throwable ignored) { /* system_server 只读 RemotePreferences：忽略 */ }
         }
     }
 
@@ -91,7 +95,7 @@ public class ConfigData {
         SharedPreferences p = current();
         if (p != null) {
             try { p.edit().putInt(key, value).apply(); }
-            catch (Throwable ignored) {  }
+            catch (Throwable ignored) { /* system_server 只读 RemotePreferences：忽略 */ }
         }
     }
 
@@ -104,11 +108,11 @@ public class ConfigData {
         SharedPreferences p = current();
         if (p != null) {
             try { p.edit().putBoolean(key, value).apply(); }
-            catch (Throwable ignored) {  }
+            catch (Throwable ignored) { /* system_server 只读 RemotePreferences：忽略 */ }
         }
     }
 
-    
+    // ===== 属性（UI 与 Host 共用；Kotlin 属性语法可映射） =====
     public static boolean isShowDeveloperNotice() {
         return getBoolean(KEY_SHOW_DEVELOPER_NOTICE, true);
     }
@@ -172,7 +176,7 @@ public class ConfigData {
         putBoolean(KEY_SHARE_WITH_FILE, value);
     }
 
-    
+    /** 全局错误显示类型（AppErrorsConfigType.ordinal；默认通知——本模块为通知版定位） */
     public static int getGlobalShowErrorsType() {
         return getInt(KEY_GLOBAL_SHOW_ERRORS_TYPE, AppErrorsConfigType.NOTIFY.ordinal());
     }
@@ -180,7 +184,7 @@ public class ConfigData {
         putInt(KEY_GLOBAL_SHOW_ERRORS_TYPE, value);
     }
 
-    
+    /** 通知「忽略该应用」按钮：true=忽略直到重启（默认），false=忽略直到解锁 */
     public static boolean isMuteIgnoreUntilReboot() {
         return getBoolean(KEY_MUTE_IGNORE_UNTIL_REBOOT, true);
     }
@@ -188,7 +192,7 @@ public class ConfigData {
         putBoolean(KEY_MUTE_IGNORE_UNTIL_REBOOT, value);
     }
 
-    
+    /** 调试日志开关（默认关闭）：关闭时 system_server 只输出「崩溃记录」1条日志，其余通道回传日志不打 */
     public static boolean isEnableDebug() {
         return getBoolean(KEY_ENABLE_DEBUG, false);
     }

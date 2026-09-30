@@ -1,4 +1,6 @@
-
+/*
+ * AppErrorsTracking - 快捷开关磁贴服务 (Java 化)
+ */
 package io.github.vstory.apperrors.service;
 
 import android.app.PendingIntent;
@@ -9,7 +11,7 @@ import android.service.quicksettings.TileService;
 import io.github.vstory.apperrors.ui.activity.errors.AppErrorsRecordActivity;
 import io.github.vstory.apperrors.utils.factory.FunctionFactoryKt;
 
-
+/** 快捷开关磁贴服务 */
 public class QuickStartTileService extends TileService {
 
     @SuppressWarnings("deprecation")

@@ -1,16 +1,20 @@
-
+/*
+ * AppErrorsTracking - 应用过滤条件 bean (Java 化)
+ */
 package io.github.vstory.apperrors.bean;
 
 import io.github.vstory.apperrors.bean.enums.AppFiltersType;
 
 import java.io.Serializable;
 
-
+/**
+ * 应用过滤条件 bean
+ */
 public class AppFiltersBean implements Serializable {
 
-    
+    /** 名称或包名 */
     public String name = "";
-    
+    /** 过滤条件类型 */
     public AppFiltersType type = AppFiltersType.USER;
 
     public AppFiltersBean() {
