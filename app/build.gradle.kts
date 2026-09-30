@@ -5,6 +5,8 @@ plugins {
 android {
     namespace = "io.github.vstory.apperrors"
     compileSdk = 37
+    // arm64 沙箱只装了 Commit451 的 arm64 build-tools 37.0.0（AGP 默认要的 36.0.0 不存在）
+    buildToolsVersion = "37.0.0"
 
     signingConfigs {
         create("universal") {
