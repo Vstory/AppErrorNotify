@@ -1,6 +1,3 @@
-/*
- * AppErrorsTracking - 异常堆栈分享工具类 (Java 化)
- */
 package io.github.vstory.apperrors.utils.tool;
 
 import android.content.Context;
@@ -9,14 +6,12 @@ import io.github.vstory.apperrors.databinding.DiaStackTraceShareBinding;
 import io.github.vstory.apperrors.locale.LocaleFactoryKt;
 import io.github.vstory.apperrors.utils.factory.DialogBuilderFactoryKt;
 
-/** 异常堆栈分享工具类 */
 public class StackTraceShareHelper {
 
     public interface OnChooseCallback {
         void onChoose(boolean sDeviceBrand, boolean sDeviceModel, boolean sDisplay, boolean sPackageName);
     }
 
-    /** 显示分享选择器 */
     public static void showChoose(Context context, String title, OnChooseCallback onChoose) {
         DialogBuilderFactoryKt.showDialog_Generics(context, DiaStackTraceShareBinding.class, false, builder -> {
             builder.setTitle(title);
