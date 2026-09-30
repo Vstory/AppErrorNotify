@@ -38,6 +38,40 @@ public class ConfigData {
     private static final String KEY_MUTE_IGNORE_UNTIL_REBOOT = "_mute_ignore_until_reboot";
     private static final String KEY_ENABLE_DEBUG = "_enable_debug";
 
+    /**
+     * 首帧「存储就绪」等待上限（ms）——**只在本地镜像尚未播种、且还有等待额度时**才用
+     * （见 {@link #isMirrorSeeded()} 与 {@link #shouldAwaitFirstBind()}）。
+     *
+     * 用途（2026-09-30 issue#1 第二轮）：把「读早于绑定」从事后自愈改成事前保证——冷启动时先在
+     * {@code Application.onCreate} 里等一次，等到了首帧读的就是 remote 权威值（开关 / 界面语言 /
+     * 忽略行为行同源）；没等到就按镜像继续，UI 层监听器仍会在真正绑定时重放。
+     * 镜像播种过一次后永远不再等待（绝大多数冷启动零开销）。
+     *
+     * ⚠️ 等待点必须能在 {@code Application.onCreate}，**绝不能在 {@code Activity.attachBaseContext}**：
+     *    provider 的发布发生在 Application.onCreate 之前，此时框架的 binder 已能推进来；
+     *    而在 attachBaseContext 阻塞会让「框架等模块 provider 发布」与「模块等框架 binder」
+     *    互相等待（互锁），直到框架侧超时。详见知识库 dev-guide/实战/api102开发实战.md §24.6。
+     */
+    public static final long FIRST_BIND_WAIT_MS = 500;
+
+    /** 本地镜像「已播种」标记（只写镜像文件，不写 remote；镜像文件在应用私有目录，升级/重启都不丢） */
+    private static final String KEY_MIRROR_SEEDED = "__mirror_seeded";
+
+    /** 「等过但没等到绑定」的累计次数（只写镜像文件，不进 remote） */
+    private static final String KEY_BIND_WAIT_MISSES = "__bind_wait_misses";
+
+    /**
+     * 等待失手上限：连续没等到绑定的次数达到它就不再等。
+     *
+     * 为什么需要：没装/没激活 LSPosed 的设备上**永远不会**有 binder —— 若只看「镜像未播种」就等，
+     * 这些用户每次冷启动都要白付 {@link #FIRST_BIND_WAIT_MS}（对公开仓库的普通用户是纯损失）。
+     * 有额度上限后：最多白付 2 次（每次 ≤500ms），成功绑定过一次就清零并因「已播种」不再进入等待。
+     */
+    private static final int BIND_WAIT_MAX_MISSES = 2;
+
+    /** 绑定/断开唤醒锁（{@link #awaitFirstBind} 的 wait/notify 监视器） */
+    private static final Object BIND_LOCK = new Object();
+
     /** 远程偏好（UI 连接 service 后 / system_server 侧；**权威**） */
     private static volatile SharedPreferences remotePrefs;
 
@@ -82,10 +116,81 @@ public class ConfigData {
         syncRemoteIntoMirror();
         // 对齐原版：切换远程存储后重新加载应用配置模板集合，保证 UI 显示/操作基于最新数据
         AppErrorsConfigData.refresh();
+        // ③ 绑定成功 → 清零「等待失手」计数（止损额度恢复）
+        resetBindWaitMisses();
+        // ④ 唤醒等待首帧就绪的线程（Application.onCreate 的有界等待；镜像播种已完成）
+        synchronized (BIND_LOCK) {
+            BIND_LOCK.notifyAll();
+        }
     }
 
     /** 刷新存储控制类（直读模式，占位兼容） */
     public static void refresh() {
+    }
+
+    // ===== 首帧就绪（等待首次绑定 = remote 可用 + 镜像已播种） =====
+
+    /** 本地镜像是否已从 remote（权威）播种过 */
+    public static boolean isMirrorSeeded() {
+        SharedPreferences local = localPrefs;
+        return local != null && local.getBoolean(KEY_MIRROR_SEEDED, false);
+    }
+
+    /** 是否还有「等待首次绑定」的额度（未连续失手到上限）。与 {@link #isMirrorSeeded()} 一起决定要不要等 */
+    public static boolean shouldAwaitFirstBind() {
+        SharedPreferences local = localPrefs;
+        if (local == null) return false;
+        return local.getInt(KEY_BIND_WAIT_MISSES, 0) < BIND_WAIT_MAX_MISSES;
+    }
+
+    /** 记一次「等过但没等到绑定」（未激活 LSPosed 的设备上止损用；绑定成功后清零） */
+    public static void noteBindWaitMiss() {
+        SharedPreferences local = localPrefs;
+        if (local == null) return;
+        try {
+            local.edit()
+                    .putInt(KEY_BIND_WAIT_MISSES, local.getInt(KEY_BIND_WAIT_MISSES, 0) + 1)
+                    .commit();
+        } catch (Throwable ignored) { /* 计数失败仅影响止损，忽略 */ }
+    }
+
+    /** 绑定成功 → 清零「等待失手」计数（下次镜像万一又被清空，仍留有等待额度） */
+    private static void resetBindWaitMisses() {
+        SharedPreferences local = localPrefs;
+        if (local == null) return;
+        try {
+            local.edit().putInt(KEY_BIND_WAIT_MISSES, 0).commit();
+        } catch (Throwable ignored) { /* 忽略 */ }
+    }
+
+    /**
+     * 有界等待「首次 service 绑定」（= 第一次拿到 remote 权威存储 + 播种镜像）。
+     *
+     * 冷启动时在 {@code Application.onCreate}（registerListener 之后、任何配置读取之前）调用一次：
+     * 绑定早于本次调用（binder 在 provider 发布后即到、被 XposedServiceHelper 缓存并同步重放）时立即返回；
+     * 否则最多等 {@code timeoutMs}（典型几十 ms 内到）。
+     *
+     * @return true = 已绑定（remote 可用）；false = 超时（按本地镜像继续，UI 层会在真正绑定时重放）
+     */
+    public static boolean awaitFirstBind(long timeoutMs) {
+        if (remotePrefs != null) return true;
+        // 用 System.nanoTime()（单调递增、纯 JDK）而不是 android.os.SystemClock：
+        // 等待窗口只有几百 ms，"休眠不计时"的语义无关；好处是这段逻辑可脱离 Android 运行时
+        // 做离机自检（见知识库项目记录里的自检脚本）。
+        long deadline = System.nanoTime() + Math.max(0L, timeoutMs) * 1_000_000L;
+        synchronized (BIND_LOCK) {
+            while (remotePrefs == null) {
+                long remainNanos = deadline - System.nanoTime();
+                if (remainNanos <= 0) return false;
+                try {
+                    BIND_LOCK.wait(Math.max(1L, remainNanos / 1_000_000L), (int) (remainNanos % 1_000_000L));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     // ===== 镜像 ↔ remote 同步 =====
@@ -103,19 +208,21 @@ public class ConfigData {
         } catch (Throwable ignored) { /* 写失败：保留 pending */ }
     }
 
-    /** 把 remote（权威）的值反向补齐本地镜像 */
+    /** 把 remote（权威）的值反向补齐本地镜像，并标记「已播种」 */
     private static void syncRemoteIntoMirror() {
         SharedPreferences local = localPrefs;
         SharedPreferences remote = remotePrefs;
         if (local == null || remote == null) return;
         try {
             Map<String, ?> all = remote.getAll();
-            if (all.isEmpty()) return;
             SharedPreferences.Editor editor = local.edit();
             for (Map.Entry<String, ?> entry : all.entrySet())
                 putObject(editor, entry.getKey(), entry.getValue());
+            // ⚠️ 即使 remote 为空也要打这个标记：remote「确实没有值」本身就是权威事实。
+            //    若空着不打标记 → 镜像永远 unseeded → 每次冷启动都白等一次 FIRST_BIND_WAIT_MS。
+            editor.putBoolean(KEY_MIRROR_SEEDED, true);
             editor.commit();
-        } catch (Throwable ignored) { /* 镜像同步失败不影响主流程 */ }
+        } catch (Throwable ignored) { /* 镜像同步失败不影响主流程（下次绑定再试） */ }
     }
 
     /** 按值类型写入编辑器（回灌 / 镜像同步复用） */
