@@ -125,5 +125,18 @@
             android:authorities="${applicationId}.XposedService"
             android:exported="true"
             tools:ignore="ExportedContentProvider" />
+
+        <!-- 升级后播种配置镜像（RemotePreferences 权威值 → 本地镜像文件）：
+             升级后的第一次冷启动，镜像还是空的 → 首帧会显示默认值（开关/界面语言/忽略行为行）。
+             本接收器让系统在升级完成时就把进程拉起来（顺带触发框架推 binder），等绑定 + 播种完成即退出，
+             把"等待"放到用户无感的时刻。exported=false 同样能收到系统发的 MY_PACKAGE_REPLACED。
+             详见 ModuleUpgradeReceiver 注释 / ConfigData.FIRST_BIND_WAIT_MS -->
+        <receiver
+            android:name=".receiver.ModuleUpgradeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
