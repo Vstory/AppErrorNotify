@@ -1,7 +1,3 @@
-/*
- * AppErrorsTracking (api102 重构版) - 系统框架 hook 实体 (Java 化)
- * 原 YukiHookAPI 版 → 纯 libxposed API 102：module.hook(Executable).intercept(chain)
- */
 package io.github.vstory.apperrors.hook.entity;
 
 import android.app.ActivityManager;
@@ -64,47 +60,32 @@ import io.github.libxposed.api.XposedInterface.Hooker;
 import io.github.libxposed.api.XposedInterface.Chain;
 import io.github.libxposed.api.XposedModule;
 
-/** 系统框架 hook 实体 */
 public class FrameworkHooker {
 
     private static final String TAG = "AppErrorNotify";
 
-    /** 模块实例（HookEntry.onSystemServerStarting 注入） */
     private static XposedModule module;
 
-    /** system_server 的 ClassLoader（必须用它加载 com.android.server.* 隐藏类，不能用 Class.forName 默认加载器！） */
+    /** 必须用它加载 com.android.server.*，不能用 Class.forName 默认加载器 */
     private static ClassLoader systemServerClassLoader;
 
-    /** system_server Context（首次 hook 时从 AppErrors.mContext 取得） */
     private static Context hostContext;
 
-    /** 已注册的 hook 句柄（热重载重装时清空重建） */
     private static final List<HookHandle> hookHandles = new ArrayList<>();
 
-    /** hook 注册汇总（一次性输出，避免刷屏） */
     private static final List<String> hookSummary = new ArrayList<>();
     private static int hookOkCount = 0;
     private static int hookSkipCount = 0;
     private static int hookFailCount = 0;
 
-    // ===== 崩溃风暴自动抑制（同一应用反复崩溃 → 通知刷屏防护）=====
-    /** 通知固定 id：与 tag=包名 组合 → 同一应用反复崩溃替换同一条通知，不堆积 */
     private static final int NOTIFICATION_ID = 0xAE;
-    /** 「已自动暂停通知」说明通知的固定 id（同 tag=包名，与崩溃通知 0xAE 并存区分） */
     private static final int SUPPRESS_NOTICE_ID = 0xAF;
-    /** 说明通知「恢复通知」按钮广播 action（system_server receiver 处理） */
     private static final String ACTION_RESUME_SUPPRESS = "io.github.vstory.apperrors.action.RESUME_SUPPRESS";
-    /** 恢复广播携带的应用名（与包名 EXTRA_PACKAGE="package" 并列；resume toast 需要显示应用名而非包名） */
     private static final String EXTRA_APP_NAME = "app_name";
-    /** 风暴判定窗口：30 秒 */
     private static final long BURST_WINDOW_MS = 30_000L;
-    /** 窗口内崩溃 ≥3 次 → 自动抑制 */
     private static final int BURST_LIMIT = 3;
-    /** 抑制恢复：自上次崩溃起平静 3 分钟自动解除 */
     private static final long SUPPRESS_QUIET_MS = 3 * 60_000L;
-    /** 正常态：每应用窗口内崩溃时间戳（内存，仅通知决策用） */
     private static final Map<String, ArrayDeque<Long>> crashWindowTimes = new HashMap<>();
-    /** 抑制态：应用 → 抑制截止时间（抑制期间再崩则顺延） */
     private static final Map<String, Long> autoSuppressedUntil = new HashMap<>();
 
     private static void log(int level, Object msg, Throwable e) {
@@ -124,26 +105,14 @@ public class FrameworkHooker {
     private static void logError(Object msg, Throwable e) { log(Log.ERROR, msg, e); }
     private static void logError(Object msg) { log(Log.ERROR, msg, null); }
     private static void logInfo(Object msg) { log(Log.INFO, msg, null); }
-    /** 调试日志（受「调试日志」开关控制）：关闭时不打印，用于输出通道回传等调试信息。
-     *  ⚠️ D 级(DEBUG=3)【双通道】规范：走 Debug.d() = 框架 log(3) + logcat Log.d，两边都能看。
-     *  另补写 ModuleLogger（内存日志），使 D 级调试日志也出现在 LoggerActivity 调试日志页。 */
     private static void logDebug(Object msg) {
         if (!ConfigData.isEnableDebug()) return;
         String m = msg != null ? msg.toString() : "";
-        // D 级双通道：Debug.d() 内部同时输出框架 log(D) + logcat Log.d（正规调试日志，tag=模块名）
         Debug.d(TAG, m);
-        // 补写模块内存日志（UI 调试日志页 LoggerActivity 可见；规范 D 级双通道不覆盖内存日志这一路）
         ModuleLogger.log("D", TAG, m, null);
     }
 
-    // ===== 专用后台线程（防 system_server 死锁）=====
-    // ⚠️ 2026-09-05 死机根因修复：崩溃 hook 回调运行在 system_server 崩溃处理线程上，
-    //    该线程常处于 AMS/ProcLock 持锁上下文。若【同步】执行 force-stop(AMS 锁)、
-    //    通知 cancel/notify(NMS 锁)、Toast(NMS) 等跨服务调用，会与系统其他线程
-    //    （如 main 持 NMS 锁反向要 AMS 锁）形成 AB-BA 循环死锁 → watchdog 68s 杀 system_server
-    //    （真机 WDT trace 实证：main↔binder 367 互等 ProcLock/NMS 锁；Thanos Api101Hooker
-    //    hook 通知链进一步放大窗口）。
-    //    因此所有「系统服务副作用」一律投递到本专用串行线程执行，hook 回调只做轻量判定立即返回。
+    // 崩溃 hook 跑在 AMS 持锁线程上，副作用必须投到专用后台线程，防 system_server 死锁
     private static volatile Handler bgHandler;
 
     private static Handler ensureBgHandler() {
@@ -166,7 +135,6 @@ public class FrameworkHooker {
         return h;
     }
 
-    /** 把副作用投递到专用后台串行线程；失败（极端情况）则直接在当前线程执行兜底 */
     private static void runOnBg(Runnable r) {
         try {
             Handler h = ensureBgHandler();
@@ -182,19 +150,15 @@ public class FrameworkHooker {
         }
     }
 
-    // ===== Java 标准反射工具 =====
 
-    /** 用 system_server ClassLoader 加载类（Android 16+ 隐藏 API 限制，必须用它，不能 Class.forName 默认加载器） */
     private static Class<?> classOf(String... names) {
         for (String name : names) {
-            // 1. system_server classloader（首次 onSystemServerStarting 保存；热重载从旧 hook executable 反查）
             if (systemServerClassLoader != null) {
                 try {
                     return Class.forName(name, false, systemServerClassLoader);
                 } catch (Throwable ignored) {
                 }
             }
-            // 2. 兜底：boot classpath 的 framework classloader（ActivityThread 在 boot classpath，其加载器可看到 framework 类）
             try {
                 ClassLoader boot = Class.forName("android.app.ActivityThread").getClassLoader();
                 if (boot != null && boot != FrameworkHooker.class.getClassLoader()) {
@@ -205,7 +169,6 @@ public class FrameworkHooker {
                 }
             } catch (Throwable ignored) {
             }
-            // 3. 最后兜底：模块默认 classloader
             try {
                 return Class.forName(name);
             } catch (Throwable ignored) {
@@ -214,14 +177,12 @@ public class FrameworkHooker {
         return null;
     }
 
-    /** 必须存在的类 */
     private static Class<?> classOfRequired(String... names) {
         Class<?> c = classOf(names);
         if (c == null) throw new IllegalStateException("Class not found: " + names[0]);
         return c;
     }
 
-    /** 读字段（含父类） */
     private static Object getField(Object owner, String name) {
         Class<?> clazz = owner != null ? owner.getClass() : null;
         while (clazz != null) {
@@ -238,7 +199,6 @@ public class FrameworkHooker {
         return null;
     }
 
-    /** 写字段（含父类） */
     private static void setField(Object owner, String name, Object value) {
         Class<?> clazz = owner != null ? owner.getClass() : null;
         while (clazz != null) {
@@ -255,7 +215,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 调用无参方法（含父类） */
     private static Object invokeMethod(Object owner, String name, Object... args) {
         Class<?> clazz = owner != null ? owner.getClass() : null;
         Class<?>[] paramTypes = new Class<?>[args.length];
@@ -274,7 +233,6 @@ public class FrameworkHooker {
         return null;
     }
 
-    /** 获取方法（指定类，供 hook）- 精确参数类型匹配 */
     private static Method methodOf(Class<?> clazz, String name, Class<?>... paramTypes) {
         try {
             Method m = clazz.getDeclaredMethod(name, paramTypes);
@@ -285,7 +243,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 获取方法（指定类，供 hook）- 按参数个数匹配（兼容各 Android 版本签名差异，原 YukiHookAPI parameterCount 语义） */
     private static Method methodOfParamCount(Class<?> clazz, String name, int paramCount) {
         try {
             for (Method m : clazz.getDeclaredMethods()) {
@@ -299,7 +256,6 @@ public class FrameworkHooker {
         return null;
     }
 
-    /** 获取构造器（指定类，供 hook）- 精确参数类型匹配 */
     private static Constructor<?> constructorOf(Class<?> clazz, Class<?>... paramTypes) {
         try {
             Constructor<?> c = clazz.getDeclaredConstructor(paramTypes);
@@ -310,7 +266,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 获取构造器（指定类，供 hook）- 按参数个数匹配 */
     private static Constructor<?> constructorOfParamCount(Class<?> clazz, int paramCount) {
         try {
             for (Constructor<?> c : clazz.getDeclaredConstructors()) {
@@ -324,7 +279,6 @@ public class FrameworkHooker {
         return null;
     }
 
-    // ===== 懒加载框架类 =====
 
     private static Class<?> UserControllerClass() { return classOf("com.android.server.am.UserController"); }
     private static Class<?> AppErrorsClass() { return classOfRequired("com.android.server.am.AppErrors"); }
@@ -336,11 +290,7 @@ public class FrameworkHooker {
     private static Class<?> PackageListClass() { return classOf("com.android.server.am.ProcessRecord$PackageList", "com.android.server.am.PackageList"); }
     private static Class<?> ErrorDialogControllerClass() { return classOf("com.android.server.am.ProcessRecord$ErrorDialogController", "com.android.server.am.ErrorDialogController"); }
 
-    /** 模块 APK 资源（system_server 内加载）
-     *  ⚠️ 不能用 getResourcesForApplication()：在 system_server 里返回的 Resources 资源表不完整，
-     *      getString 抛 Resources$NotFoundException（日志实证）。原版 YukiHookAPI 用 XModuleResources
-     *      （= AssetManager.addAssetPath(模块APK) + new Resources）从模块 APK 路径直接加载。
-     *      api102 没有 XModuleResources，这里用 AssetManager 等价实现。 */
+    /** 不能用 getResourcesForApplication：system_server 里资源表不全，getString 会抛 NotFoundException */
     private static android.content.res.Resources moduleResources() {
         Context context = hostContext;
         if (context == null) return null;
@@ -350,14 +300,11 @@ public class FrameworkHooker {
             String apkPath = ai.sourceDir;
             if (apkPath == null) return null;
             android.content.res.AssetManager am = context.getResources().getAssets();
-            // 创建一个独立的 AssetManager 并添加模块 APK 路径（等价 XModuleResources.createInstance）
             try {
                 android.content.res.AssetManager am2 = (android.content.res.AssetManager) android.content.res.AssetManager.class.getConstructor().newInstance();
-                // addAssetPath 是隐藏 API，Android 9+ 反射受限但 system_server 内可访问
                 java.lang.reflect.Method addPath = android.content.res.AssetManager.class.getMethod("addAssetPath", String.class);
                 int cookie = (Integer) addPath.invoke(am2, apkPath);
                 if (cookie == 0) return null;
-                // 依据用户语言偏好应用目标语言（崩溃通知跟随界面语言设定）
                 android.content.res.Configuration cfg = new android.content.res.Configuration(context.getResources().getConfiguration());
                 try {
                     int langMode = io.github.vstory.apperrors.utils.tool.LanguageData.getMode();
@@ -369,7 +316,6 @@ public class FrameworkHooker {
                 } catch (Throwable ignored) { /* 读偏好失败则跟随系统 */ }
                 return new android.content.res.Resources(am2, context.getResources().getDisplayMetrics(), cfg);
             } catch (Throwable t) {
-                // fallback: 老方案（至少尝试）
                 return context.getPackageManager().getResourcesForApplication(ai);
             }
         } catch (Throwable ignored) {
@@ -377,8 +323,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 获取 system_server 的 Context（ActivityThread.mSystemContext，onSystemServerStarting 早期可用）
-     *  用于在 system_server 启动时就初始化文件存储目录（原版在 Application onCreate 初始化） */
     public static Context getSystemServerContext() {
         try {
             Class<?> atClass = Class.forName("android.app.ActivityThread", false, systemServerClassLoader);
@@ -394,7 +338,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** system_server 初始化（懒：首次 hook 拿到 Context 后） */
     private static void ensureHostContext(Context context) {
         if (hostContext != null) return;
         hostContext = context;
@@ -404,8 +347,6 @@ public class FrameworkHooker {
                 return r != null ? r : context.getResources();
             });
         }
-        // 初始化异常记录存储（system_server 写文件 /data/misc/apperrors_<random>/，与 UI 进程同源）
-        // ensureHostContext 可能由 onSystemServerStarting 后的首次崩溃触发；此处幂等兜底
         try {
             AppErrorsRecordData.init(context);
         } catch (Throwable t) {
@@ -415,22 +356,18 @@ public class FrameworkHooker {
         registerErrorChannel(context);
     }
 
-    /** 广播通道 action 常量（与 UI 进程 AppErrorsRecordData 约定） */
     static final String ACTION_GET_ERRORS = "io.github.vstory.apperrors.action.GET_ERRORS";
     static final String ACTION_ERRORS_RESULT = "io.github.vstory.apperrors.action.ERRORS_RESULT";
     static final String ACTION_CLEAR_ERRORS = "io.github.vstory.apperrors.action.CLEAR_ERRORS";
     static final String ACTION_REMOVE_ERROR = "io.github.vstory.apperrors.action.REMOVE_ERROR";
     static final String EXTRA_ERRORS = "errors";
     static final String EXTRA_BEAN = "bean";
-    /** 统计通道：应用总数（system_server 特权枚举，避免 UI 进程触发 ROM「读取应用列表」授权弹窗） */
     static final String ACTION_GET_APP_TOTAL = "io.github.vstory.apperrors.action.GET_APP_TOTAL";
     static final String ACTION_APP_TOTAL_RESULT = "io.github.vstory.apperrors.action.APP_TOTAL_RESULT";
     static final String EXTRA_APP_TOTAL = "total_apps";
-    /** 日志通道（ModuleLogger 约定，见 ModuleLogger） */
     static final String ACTION_GET_LOGS = ModuleLogger.ACTION_GET_LOGS;
     static final String ACTION_LOGS_RESULT = ModuleLogger.ACTION_LOGS_RESULT;
     static final String EXTRA_LOGS = ModuleLogger.EXTRA_LOGS;
-    /** 忽略通道（MutedErrorsData 约定，见 MutedErrorsData） */
     static final String ACTION_GET_MUTED = MutedErrorsData.ACTION_GET_MUTED;
     static final String ACTION_MUTED_RESULT = MutedErrorsData.ACTION_MUTED_RESULT;
     static final String ACTION_MUTE_ERROR = MutedErrorsData.ACTION_MUTE_ERROR;
@@ -439,36 +376,18 @@ public class FrameworkHooker {
     static final String EXTRA_MUTED = MutedErrorsData.EXTRA_MUTED;
     static final String EXTRA_PACKAGE = MutedErrorsData.EXTRA_PACKAGE;
 
-    /** 广播通道是否已注册（幂等） */
     private static volatile boolean errorChannelRegistered = false;
 
-    /**
-     * 热重载后由 HookEntry 调用：恢复「广播通道已注册」状态。
-     *  ⚠️ 热重载会用新 ClassLoader 重载本类，导致 errorChannelRegistered 复位为 false；
-     *     而 system_server 里旧 ClassLoader 注册的 broadcast receiver 仍然存在、仍能响应 GET_ERRORS。
-     *     若不恢复该标志，ensureHostContext 首次触发时又会 registerErrorChannel → 重复注册 receiver（真机实证：
-     *     同一 GET_ERRORS 被多个 receiver 各回传一次，出现 sent 0 / sent N 分裂）。
-     *     恢复为 true 后，registerErrorChannel 会直接 return，复用仍在 system_server 里的旧 receiver。
-     */
     public static void restoreBroadcastChannelRegistered() {
         errorChannelRegistered = true;
     }
 
-    /** 广播通道是否已注册（供 HookEntry 判断是否需要重新注册，可选） */
     public static boolean isBroadcastChannelRegistered() {
         return errorChannelRegistered;
     }
 
-    /** 通道注册失败重试次数上限 */
     private static final int ERROR_CHANNEL_RETRY_MAX = 20;
 
-    /**
-     * 注册异常记录广播通道（UI 进程经广播从 system_server 拉记录/清空/删除；
-     *  ⚠️ UI 进程不能直接读 /data/misc/ 文件（SELinux+DAC 权限不足），原版用 dataChannel 广播中转，
-     *     这里用标准系统广播等价实现）
-     *  ⚠️ 必须 RECEIVER_EXPORTED：UI 进程（普通 UID）发的广播要被 system_server 的 receiver 收到，
-     *     NOT_EXPORTED 只能收系统/同 UID 广播（真机实证：UI 转圈拉不到数据）
-     */
     public static void registerErrorChannel(Context context) {
         if (errorChannelRegistered) return;
         errorChannelRegistered = true;
@@ -480,13 +399,11 @@ public class FrameworkHooker {
                     String action = intent.getAction();
                     try {
                         if (ACTION_GET_ERRORS.equals(action)) {
-                            // ⚠️ 热重载会用新 ClassLoader 重载模块类，导致内存 allData 分裂（旧/新各一份），
-                            //    若读内存态会随机出现 sent 0（空）→ UI 列表拉不到数据。
-                            //    改用磁盘权威数据（文件永远是最新崩溃记录），所有 receiver（新旧 class）都读到同一份。
+                            // 热重载会分裂内存态，故每次从磁盘重读，否则 UI 会拉到空列表
                             java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> latest =
                                     AppErrorsRecordData.latestFromFiles();
                             Intent result = new Intent(ACTION_ERRORS_RESULT);
-                            result.setPackage(BuildConfigWrapper.APPLICATION_ID); // 只发给模块 UI
+                            result.setPackage(BuildConfigWrapper.APPLICATION_ID);
                             result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(latest));
                             ctx.sendBroadcast(result);
                             logDebug("Error channel: sent " + latest.size() + " records to UI");
@@ -499,9 +416,6 @@ public class FrameworkHooker {
                                 AppErrorsRecordData.remove((io.github.vstory.apperrors.bean.AppErrorsInfoBean) bean);
                             logDebug("Error channel: removed one record from UI");
                         } else if (ACTION_GET_APP_TOTAL.equals(action)) {
-                            // 统计「应用总数」：system_server 特权枚举（uid=1000 对全量应用天然可见），
-                            //   避免 UI 进程 getInstalledPackages 触发 ROM「读取应用列表」授权弹窗
-                            //   （ColorOS 实测：该授权会话级、重启后复发，与 QUERY_ALL_PACKAGES granted 状态无关）
                             int total = 0;
                             try {
                                 java.util.List<android.content.pm.PackageInfo> all =
@@ -519,14 +433,12 @@ public class FrameworkHooker {
                             ctx.sendBroadcast(result);
                             logDebug("Stats channel: sent total apps " + total + " to UI");
                         } else if (ACTION_GET_LOGS.equals(action)) {
-                            // 调试日志：回传 system_server 内存日志给 UI
                             Intent result = new Intent(ACTION_LOGS_RESULT);
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
                             result.putExtra(EXTRA_LOGS, new java.util.ArrayList<>(ModuleLogger.allData()));
                             ctx.sendBroadcast(result);
                             logDebug("Log channel: sent " + ModuleLogger.allData().size() + " logs to UI");
                         } else if (ACTION_GET_MUTED.equals(action)) {
-                            // 忽略列表：回传 system_server 内存忽略列表给 UI（system_server 是权威）
                             Intent result = new Intent(ACTION_MUTED_RESULT);
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
                             result.putExtra(EXTRA_MUTED, MutedErrorsData.fetchMutedErrorsAppsData());
@@ -535,7 +447,6 @@ public class FrameworkHooker {
                         } else if (ACTION_MUTE_ERROR.equals(action)) {
                             String pkg = intent.getStringExtra(EXTRA_PACKAGE);
                             if (pkg != null && !pkg.isEmpty()) {
-                                // 通知「忽略该应用」按钮行为：根据用户配置 直到重启/直到解锁
                                 if (ConfigData.isMuteIgnoreUntilReboot()) {
                                     MutedErrorsData.mutedErrorsIfRestart(pkg);
                                     logDebug("Mute channel: muted \"" + pkg + "\" until restart");
@@ -553,14 +464,10 @@ public class FrameworkHooker {
                             MutedErrorsData.unmuteAllErrorsApps();
                             logDebug("Mute channel: unmuted all apps");
                         } else if (ACTION_RESUME_SUPPRESS.equals(action)) {
-                            // 抑制说明通知「恢复通知」按钮：解除该应用自动抑制并清说明通知
                             resumeSuppressIfSuppressed(ctx, intent.getStringExtra(EXTRA_PACKAGE),
                                     intent.getStringExtra(EXTRA_APP_NAME));
                         } else if (AppErrorsConfigData.ACTION_CONFIG_CHANGED.equals(action)) {
-                            // 配置模板变更：UI 保存后立即刷新内存 Set（原版靠 onRefreshFrameworkPrefsData 回调，
-                            //  libxposed 无此回调 → 用广播等价；崩溃时读时刷新仍兜底）
                             AppErrorsConfigData.refresh();
-                            // UI 语言切换也走此广播：重新绑定 I18n，让崩溃通知立即用目标语言
                             if (LocaleFactoryKt.isLocaleInitialized()) {
                                 LocaleFactoryKt.attachLocale(() -> {
                                     android.content.res.Resources r = moduleResources();
@@ -594,9 +501,7 @@ public class FrameworkHooker {
             errorChannelRetry = 0;
         } catch (Throwable t) {
             errorChannelRegistered = false;
-            // ⚠️ 2026-09-05 修复：system_server 启动早期（AMS/IActivityManager 尚未 publish）同步注册必然 NPE
-            //    （registerReceiverWithFeature ... on a null object reference）——这是正常时序，不是故障。
-            //    此时打 info（不吓人）+ 3s 后自动重试；AMS publish 后重试即成（真机实证仅 1 次即成功）。
+            // 启动早期系统服务未 publish，同步注册会 NPE，故延迟重试
             boolean amsNotReady = t instanceof NullPointerException
                     && String.valueOf(t.getMessage()).contains("registerReceiverWithFeature");
             if (amsNotReady) {
@@ -605,7 +510,6 @@ public class FrameworkHooker {
             } else {
                 logError("错误通道注册失败\n  " + t);
             }
-            // 系统服务未就绪（如 ActivityManager 为 null）→ 延迟重试，保证 UI 拉取通道可用
             if (context != null && errorChannelRetry < ERROR_CHANNEL_RETRY_MAX) {
                 errorChannelRetry++;
                 final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -614,10 +518,8 @@ public class FrameworkHooker {
         }
     }
 
-    /** 通道注册重试计数 */
     private static int errorChannelRetry = 0;
 
-    /** 注册生命周期广播（替代原 YukiHookAPI onAppLifecycle） */
     private static void registerLifecycle(Context context) {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -647,12 +549,10 @@ public class FrameworkHooker {
             context.registerReceiver(receiver, filter);
     }
 
-    /** APP 进程异常数据定义类 */
     private static class AppErrorsProcessData {
         private final Object errors;
         private final Object proc;
         private final Object resultData;
-        /** ⑥ 崩溃现场抓取：崩溃进程前台 Activity 短类名（""=确认后台无可见界面；null=反射取不到降级不展示） */
         private final String foregroundActivity;
 
         AppErrorsProcessData(Object errors, Object proc, Object resultData) {
@@ -662,7 +562,6 @@ public class FrameworkHooker {
             this.foregroundActivity = captureForegroundActivity(proc);
         }
 
-        /** 崩溃时页面：前台→短类名（如 MainActivity）；后台（确认无可见界面）→""；取不到→null */
         String foregroundActivity() {
             return foregroundActivity;
         }
@@ -744,13 +643,6 @@ public class FrameworkHooker {
         }
     }
 
-    /**
-     * ⑥ 抓取崩溃进程前台 Activity 短类名（system_server 同线程只读，无 binder/无新锁，防死锁纪律见设计文档）。
-     * 返回：非空=前台 Activity 短类名（如 MainActivity）；""=确认无可见界面（后台崩溃）；null=反射路径不适配/取不到（调用方降级不展示）。
-     * AOSP Android 12+ 只读路径：ProcessRecord.mWindowProcessController(WindowProcessController)
-     *   → mActivities(ArrayList&lt;ActivityRecord&gt;) + hasVisibleActivities()（官方位标志，纯字段读）
-     *   → ActivityRecord.isVisible() / shortComponentName("pkg/.MainActivity") / mActivityComponent。
-     */
     private static String captureForegroundActivity(Object proc) {
         try {
             if (proc == null) {
@@ -763,7 +655,6 @@ public class FrameworkHooker {
                 logDebug("⑥ capture: mWindowProcessController not found (skip)");
                 return null;
             }
-            // 官方"该进程是否有可见界面"判据（读 mActivityStateFlags 位，纯字段，不取锁）
             Object hasVisible = invokeMethod(wpc, "hasVisibleActivities");
             if (!(hasVisible instanceof Boolean)) {
                 logDebug("⑥ capture: hasVisibleActivities unavailable (skip)");
@@ -771,12 +662,11 @@ public class FrameworkHooker {
             }
             if (!(Boolean) hasVisible) {
                 logDebug("⑥ capture: no visible activity -> 后台");
-                return ""; // 后台崩溃（无可见界面）
+                return "";
             }
             Object acts = getField(wpc, "mActivities");
             if (acts instanceof java.util.List) {
                 java.util.List<?> list = (java.util.List<?>) acts;
-                // 栈顶优先（mActivities 末尾=最新 activity）
                 for (int i = list.size() - 1; i >= 0; i--) {
                     Object r = list.get(i);
                     if (r == null) continue;
@@ -788,7 +678,6 @@ public class FrameworkHooker {
                         return name;
                     }
                 }
-                // hasVisibleActivities 位标志可能滞后于 activity 可见性：兜底取栈顶 activity 名
                 if (!list.isEmpty()) {
                     String name = foregroundShortName(list.get(list.size() - 1));
                     if (name != null) {
@@ -800,14 +689,13 @@ public class FrameworkHooker {
             } else {
                 logDebug("⑥ capture: mActivities not a List -> 后台");
             }
-            return ""; // 有 wpc 但 mActivities 空/异常 → 按无可见界面处理（后台）
+            return "";
         } catch (Throwable t) {
             logDebug("⑥ capture: exception -> skip\n  " + t);
-            return null; // 取不到 → 降级不展示（绝不影响崩溃记录主链路）
+            return null;
         }
     }
 
-    /** ActivityRecord 短类名（去包名）：mActivityComponent.getShortClassName() → shortComponentName 字段 */
     private static String foregroundShortName(Object activityRecord) {
         try {
             Object cn = getField(activityRecord, "mActivityComponent");
@@ -833,18 +721,7 @@ public class FrameworkHooker {
         return null;
     }
 
-    /**
-     * 崩溃风暴自动抑制 —— 决策层（纯系统级熔断，无条件执行）。
-     * ⚠️ v1.15 教训：决策原本嵌在「展示过滤之后」执行，用户开启「仅前台/仅主进程」时，
-     *    后台/非主进程崩溃在展示过滤处提前 return，根本走不到熔断 → 风暴漏网（防死机保护被配置关掉）。
-     *    本版（v1.15.75）把决策【无条件前置】：任何崩溃事件（前台/后台/主进程/被忽略应用）都先统计，
-     *    展示过滤只决定「是否打扰用户」，不能豁免「系统级熔断」。
-     * - 正常态：30 秒窗口内同应用崩溃 ≥ {@link #BURST_LIMIT} 次 → 触发熔断
-     * - 触发时：cancel 该应用已发通知 + force-stop 崩溃源（掐断自复活/闹钟风暴，防止拖垮系统崩溃转储链路，防 zygote 死机）
-     * - 抑制中：崩溃静默（仍记历史），每次崩溃顺延抑制截止（自上次崩溃平静 3 分钟后自动恢复）
-     * @return {@link #BURST_NONE}=未触发（继续正常展示） / {@link #BURST_TRIGGERED}=本次刚触发熔断
-     *         （本次静默，提示一次由调用方决定） / {@link #BURST_SILENT}=抑制中（本次静默，不提示）
-     */
+    // 熔断必须先于展示过滤执行：后台/非主进程/被忽略应用的崩溃同样要统计，否则风暴漏网
     private static final int BURST_NONE = 0;
     private static final int BURST_TRIGGERED = 1;
     private static final int BURST_SILENT = 2;
@@ -855,11 +732,9 @@ public class FrameworkHooker {
             Long deadline = autoSuppressedUntil.get(pkg);
             if (deadline != null) {
                 if (now < deadline) {
-                    // 抑制中仍崩溃：顺延恢复时间（风暴不停则一直抑制）
                     autoSuppressedUntil.put(pkg, now + SUPPRESS_QUIET_MS);
                     return BURST_SILENT;
                 }
-                // 已平静超过恢复期 → 自动解除抑制，重新计数
                 autoSuppressedUntil.remove(pkg);
             }
             ArrayDeque<Long> times = crashWindowTimes.get(pkg);
@@ -884,22 +759,11 @@ public class FrameworkHooker {
         return BURST_NONE;
     }
 
-    /**
-     * 强制停止崩溃源应用（仅熔断触发时调用）。
-     * 反复崩溃的应用常伴随自复活闹钟（如 CrashStormTest 用闹钟拉起自己 → 再崩 → 再拉起），
-     * 若只静默通知，崩溃源仍持续制造「crash_dump 转储 + 进程重建 + Zygisk 注入」的系统开销，
-     * 高频累积会拖垮 crash_dump helper 导致 zygote 死机（2026-09-04 真机实证）。
-     * force-stop 会同时杀掉进程 + 清空其全部闹钟 → 从源头掐断崩溃风暴。
-     * 走系统服务权限（uid=1000），@hide 方法反射调用。
-     */
     private static void forceStopCrashSource(Context context, String pkg, int userId) {
         try {
             ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
             if (am == null) return;
-            // Android 8.0 (API 26) 起 forceStopPackage(String,int) 老双参已改名 forceStopPackageAsUser(String,int)，
-            // AOSP 8.0~17 (API 26~37) 全版本存在（真机 ColorOS 16 framework.jar 实证 public greylist）。
-            // minSdk=26 → 老双参无需兼容（那是 API≤25 产物）。单参 forceStopPackage(String) 全版本兜底，
-            // 仅防 OEM 极端魔改删掉 AsUser（@SystemApi 内部转发当前用户，userId 通常=0 主用户，够用）。
+            // API 26+ 用 forceStopPackageAsUser 双参版
             java.lang.reflect.Method m = null;
             try {
                 m = ActivityManager.class.getMethod("forceStopPackageAsUser", String.class, int.class);
@@ -909,7 +773,7 @@ public class FrameworkHooker {
             if (m.getParameterTypes().length == 2) {
                 m.invoke(am, pkg, userId);
             } else {
-                m.invoke(am, pkg); // 单参版：仅当前用户
+                m.invoke(am, pkg);
             }
             logInfo("Burst suppress: force-stopped \"" + pkg + "\" via " + m.getName()
                     + " (userId=" + userId + ") to stop the crash storm");
@@ -918,7 +782,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 取消指定应用已发的崩溃通知（tag=包名 + 固定 id，一条即可清干净） */
     private static void cancelAppNotification(Context context, String pkg) {
         try {
             NotificationManager manager = context.getSystemService(NotificationManager.class);
@@ -927,7 +790,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 取消指定应用的「已自动暂停通知」说明通知 */
     private static void cancelSuppressNotice(Context context, String pkg) {
         try {
             NotificationManager manager = context.getSystemService(NotificationManager.class);
@@ -936,10 +798,6 @@ public class FrameworkHooker {
         }
     }
 
-    /**
-     * 发送「已自动暂停通知」说明通知（保留完整说明，用户可读；带「恢复通知」按钮可一键解除抑制）
-     * - tag = 包名 + SUPPRESS_NOTICE_ID，与崩溃通知(0xAE)区分；重复触发替换同一条，不堆积
-     */
     private static void postSuppressNotice(Context context, String pkg, String appName) {
         try {
             NotificationManager manager = context.getSystemService(NotificationManager.class);
@@ -967,7 +825,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 手动恢复被自动抑制的应用（说明通知「恢复通知」按钮）；已解除则清理说明通知并 toast 反馈 */
     private static void resumeSuppressIfSuppressed(Context context, String pkg, String appName) {
         if (pkg == null || pkg.isEmpty()) return;
         try {
@@ -983,9 +840,7 @@ public class FrameworkHooker {
         }
     }
 
-    /** 处理 APP 进程异常信息展示 */
     private static void handleShowAppErrorUi(AppErrorsProcessData d, Context context) {
-        /** 当前 APP 名称 */
         String appName;
         ApplicationInfo info = d.appInfo();
         if (info != null) {
@@ -995,50 +850,35 @@ public class FrameworkHooker {
             appName = d.packageName();
         }
 
-        /** 当前 APP 名称 (包含用户 ID) */
         String appNameWithUserId = d.userId() != 0 ? appName + " (" + LocaleFactoryKt.getLocale().userId(d.userId()) + ")" : appName;
 
-        /** 崩溃标题 */
         String errorTitle = d.isRepeatingCrash()
                 ? LocaleFactoryKt.getLocale().aerrRepeatedTitle(appNameWithUserId)
                 : LocaleFactoryKt.getLocale().aerrTitle(appNameWithUserId);
 
-        /** 手动忽略（muted）：仅控制展示层——被忽略应用仍参与风暴熔断（force-stop 防系统崩溃），只是不弹通知/toast */
         boolean muted = MutedErrorsData.getMutedErrorsIfUnlockApps().contains(d.packageName())
                 || MutedErrorsData.getMutedErrorsIfRestartApps().contains(d.packageName());
-        /** 模块自身崩溃：不参与风暴熔断（自身 force-stop 无意义；保留下方 toast/log 提示路径，便于开发期发现自身 bug） */
         boolean isSelf = BuildConfigWrapper.APPLICATION_ID.equals(d.packageName());
-        /** 崩溃风暴自动抑制（系统级熔断【无条件前置】：先于展示过滤/muted 执行，后台/非主进程/被忽略应用的崩溃同样统计）。
-         *  30 秒内同应用崩溃 ≥3 次 → force-stop 崩溃源 + 暂停通知。
-         *  ⚠️ v1.15.75 修复：此前熔断在「仅前台/仅主进程」过滤之后，开启过滤后后台风暴直接漏网；
-         *     现决策无条件执行，展示过滤只影响「是否打扰用户」，不豁免系统保护。 */
+        // 无条件前置：被忽略/后台/非主进程的崩溃同样计入熔断
         if (!isSelf) {
             int burstState = burstSuppressState(d.packageName(), d.userId(), context);
             if (burstState == BURST_TRIGGERED) {
-                // 刚触发熔断：本次崩溃静默；说明通知（含恢复按钮）仅非 muted 时发一次——被忽略应用只 force-stop 不打扰
                 if (!muted) postSuppressNotice(context, d.packageName(), appName);
                 return;
             }
             if (burstState == BURST_SILENT) return;
         }
-        /** 判断是否为后台进程（仅前台配置：后台崩溃不打扰，但风暴熔断已在上方无条件执行完） */
         if ((d.isBackgroundProcess() || !FunctionFactoryKt.isAppCanOpened(context, d.packageName()))
                 && ConfigData.isEnableOnlyShowErrorsInFront()) return;
-        /** 判断是否为主进程（仅主进程配置：非主进程崩溃不打扰，但风暴熔断已在上方无条件执行完） */
         if (!d.isMainProcess() && ConfigData.isEnableOnlyShowErrorsInMain()) return;
-        /** 判断是否为已忽略的 APP（展示过滤：muted 静默，不弹任何通知/toast；风暴防护已在上方执行） */
         if (muted) return;
 
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
             FunctionFactoryKt.toast(context, "AppErrorNotify has crashed, please see the log in console");
             logError("AppErrorNotify 自身崩溃\n  详见控制台 Android Runtime Exception");
         } else if (!ConfigData.isEnableAppConfigTemplate()) {
-            // 模板未启用（默认）：统一发送系统通知
             sendCrashNotification(context, d, appName, errorTitle);
         } else {
-            // 模板已启用：按 per-app 配置决定显示方式。
-            // ⚠️ system_server 每次崩溃时从 RemotePreferences 重读（UI 保存后无需重启立即生效），
-            //    4 次 getStringSet IPC 开销在崩溃频率下可忽略
             AppErrorsConfigData.refresh();
             AppErrorsConfigType type = resolveAppShowType(d.packageName());
             logDebug("App config template: \"" + d.packageName() + "\" -> " + type.name());
@@ -1047,18 +887,15 @@ public class FrameworkHooker {
                     FunctionFactoryKt.toast(context, errorTitle);
                     break;
                 case NOTHING:
-                    // 静默（仍记录历史 + 日志）
                     break;
                 case NOTIFY:
                 default:
                     sendCrashNotification(context, d, appName, errorTitle);
                     break;
                 case GLOBAL:
-                    // 未配置 → 跟随全局显示类型
                     AppErrorsConfigType global = AppErrorsConfigType.values()[ConfigData.getGlobalShowErrorsType()];
                     switch (global) {
                         case DIALOG:
-                            // 旧全局配置兼容降级：DIALOG → 通知
                             sendCrashNotification(context, d, appName, errorTitle);
                             break;
                         case TOAST:
@@ -1074,7 +911,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** 解析应用配置模板中该应用的显示类型（未配置 → GLOBAL 跟随全局；旧 DIALOG 配置 v1.9(42) 起废弃，同样按 GLOBAL 处理） */
     private static AppErrorsConfigType resolveAppShowType(String packageName) {
         if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.NOTIFY, packageName)) return AppErrorsConfigType.NOTIFY;
         if (AppErrorsConfigData.isAppShowingType(AppErrorsConfigType.TOAST, packageName)) return AppErrorsConfigType.TOAST;
@@ -1082,12 +918,6 @@ public class FrameworkHooker {
         return AppErrorsConfigType.GLOBAL;
     }
 
-    /**
-     * 发送崩溃通知（需求：不弹窗口/气泡 → 系统通知）
-     * - contentIntent：点击通知打开模块异常记录列表
-     * - action 按钮「查看详情」：跳转模块 AppErrorsDetailActivity 查看具体崩溃信息
-     * 由 system_server（uid=1000）发送，无需运行时权限；通知 channel 幂等创建
-     */
     private static void sendCrashNotification(Context context, AppErrorsProcessData d, String appName, String errorTitle) {
         try {
             NotificationManager manager = context.getSystemService(NotificationManager.class);
@@ -1097,7 +927,6 @@ public class FrameworkHooker {
                 manager.createNotificationChannel(new NotificationChannel(channelId,
                         LocaleFactoryKt.getLocale().getAppName(), NotificationManager.IMPORTANCE_HIGH));
 
-            // 通知图标：优先模块资源 ic_notify（转 bitmap），fallback 系统 stat_notify_error
             android.graphics.drawable.Icon icon;
             android.content.res.Resources res = moduleResources();
             Drawable dIcon = res != null ? FunctionFactoryKt.drawableOf(res, R.drawable.ic_notify) : null;
@@ -1107,7 +936,6 @@ public class FrameworkHooker {
                 icon = Icon.createWithResource(context, android.R.drawable.stat_notify_error);
             }
 
-            // 找到对应崩溃记录（详情页用；pid 匹配 allData 最新记录）
             io.github.vstory.apperrors.bean.AppErrorsInfoBean bean = null;
             for (io.github.vstory.apperrors.bean.AppErrorsInfoBean b : AppErrorsRecordData.allData) {
                 if (b.pid == d.pid()) { bean = b; break; }
@@ -1118,13 +946,11 @@ public class FrameworkHooker {
                         ai != null ? ai.packageName : d.packageName(), null);
             }
 
-            // contentIntent：打开模块异常记录列表
             Intent listIntent = AppErrorsRecordActivity.Companion.intent();
             listIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             PendingIntent contentPi = PendingIntent.getActivity(context, 0, listIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            // action 按钮「查看信息」：跳转 AppErrorsDetailActivity 带具体崩溃信息
             Intent detailIntent = new Intent();
             detailIntent.setComponent(new ComponentName(BuildConfigWrapper.APPLICATION_ID,
                     AppErrorsDetailActivity.class.getName()));
@@ -1142,10 +968,7 @@ public class FrameworkHooker {
                     .setContentIntent(contentPi)
                     .addAction(0, LocaleFactoryKt.getLocale().getNotificationViewInfo(), detailPi)
                     .setDefaults(Notification.DEFAULT_ALL);
-            // 通知用 tag=包名 + 固定 id：同一应用反复崩溃替换同一条通知（不堆积），不同应用各自独立；
-            // 风暴熔断（burstSuppressState 触发）时按同一 tag 整条取消即可清干净
             manager.notify(d.packageName(), NOTIFICATION_ID, builder.build());
-            // 若该应用正处于自动抑制中（熔断刚触发 / 抑制期再崩），追加说明通知，让用户可读、可一键恢复
             if (autoSuppressedUntil.containsKey(d.packageName())) {
                 postSuppressNotice(context, d.packageName(), appName);
             }
@@ -1154,7 +977,6 @@ public class FrameworkHooker {
         }
     }
 
-    /** Drawable 转 Bitmap（替代 core-ktx toBitmap） */
     private static Bitmap toBitmap(Drawable drawable) {
         try {
             int w = Math.max(drawable.getIntrinsicWidth(), 1);
@@ -1169,18 +991,15 @@ public class FrameworkHooker {
         }
     }
 
-    /** 处理 APP 进程异常数据 */
     private static void handleAppErrorsInfo(AppErrorsProcessData d, Context context, ApplicationErrorReport.CrashInfo info) {
         ApplicationInfo appInfo = d.appInfo();
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
-            // 模块自身崩溃：输出完整堆栈（UI 进程崩溃时 system_server 只能看到事件，这里补堆栈）
             if (info != null) {
                 logError("AppErrorNotify crashed itself, stackTrace:\n" + info.stackTrace, null);
             }
         }
         AppErrorsInfoBean bean = AppErrorsInfoBean.clone(context, d.pid(), d.userId(),
                 appInfo != null ? appInfo.packageName : null, info);
-        // ⑥ 崩溃时页面：前台→短类名；后台(确认无可见界面)→isBackgroundCrash；取不到→保持默认(详情不显示该行)
         String fg = d.foregroundActivity();
         if (fg != null && !fg.isEmpty()) {
             bean.setRunningActivity(fg);
@@ -1188,8 +1007,6 @@ public class FrameworkHooker {
             bean.setBackgroundCrash(true);
         }
         AppErrorsRecordData.add(bean);
-        // 整合为一条崩溃日志：多行结构化报告（包名/状态/pid/process/user），
-        // 单行挤爆+三行重复 → 一条多行汇总（LSPosed log() 支持 \n 换行渲染，见知识库规范）
         String pkg = d.packageName();
         String crashKind = d.isRepeatingCrash() ? "keeps stopping" : "has stopped";
         StringBuilder sb = new StringBuilder();
@@ -1202,7 +1019,6 @@ public class FrameworkHooker {
             sb.append("\n  user:     ").append(d.userId());
         }
         logInfo(sb.toString());
-        // 调试开关开启时：附加崩溃详情（堆栈/异常类），让 debug 模式与默认模式有可见差异
         if (ConfigData.isEnableDebug()) {
             String exClass = info != null ? info.exceptionClassName : null;
             String exMsg = info != null ? info.exceptionMessage : null;
@@ -1219,10 +1035,8 @@ public class FrameworkHooker {
         }
     }
 
-    /** 由 HookEntry 注入模块实例并注册 hook（热重载重装时也会调用，先清空旧句柄列表） */
     public static void install(XposedModule module, ClassLoader systemServerClassLoader) {
         FrameworkHooker.module = module;
-        // 仅在首次（或显式传入）时更新 classloader；热重载传 null 保留已保存值
         if (systemServerClassLoader != null) {
             FrameworkHooker.systemServerClassLoader = systemServerClassLoader;
         }
@@ -1234,13 +1048,11 @@ public class FrameworkHooker {
         try {
             onHook();
         } catch (Throwable t) {
-            // 防止单个 hook 点异常导致整个注册静默中断（症状：只有 onSystemServerStarting，没有 Hook 注册完成）
             logError("hook 注册整体异常，部分 hook 可能未注册\n  " + t, t);
             printHookSummary();
         }
     }
 
-    /** 记录一个 hook 注册结果（不立即打印，由 printHookSummary 汇总） */
     private static void hookExecutable(Executable e, String desc, Hooker hooker) {
         if (e == null) {
             hookSummary.add("  [SKIP] " + desc + "（方法/构造器未找到，Android 版本差异，可忽略）");
@@ -1258,13 +1070,11 @@ public class FrameworkHooker {
         }
     }
 
-    /** 一次性输出全部 hook 注册结果（避免刷屏）：全成功/仅跳过只打摘要，有失败才打印明细 */
     private static void printHookSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append("Hook 注册完成：成功 ").append(hookOkCount)
           .append(" / 跳过 ").append(hookSkipCount)
           .append(" / 失败 ").append(hookFailCount).append(" 条");
-        // 仅当存在失败项时才附带明细（全成功/仅跳过时保持一行，避免热重载/启动刷屏）
         if (hookFailCount > 0) {
             sb.append("：\n");
             for (String line : hookSummary) sb.append(line).append("\n");
@@ -1274,7 +1084,6 @@ public class FrameworkHooker {
     }
 
     private static void onHook() {
-        /** 干掉原生错误对话框 - 如果有 */
         Class<?> controllerClazz = ErrorDialogControllerClass();
         if (controllerClazz != null) {
             Method hasCrashDialogs = methodOfParamCount(controllerClazz, "hasCrashDialogs", 0);
@@ -1289,7 +1098,6 @@ public class FrameworkHooker {
             Method showCrashDialogs = methodOfParamCount(controllerClazz, "showCrashDialogs", 1);
             hookExecutable(showCrashDialogs, "ErrorDialogController#showCrashDialogs(1) -> null", chain -> null);
         }
-        /** 干掉原生错误对话框 - API 30 以下 */
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
             Class<?> atmsLocal = ActivityTaskManagerService_LocalServiceClass();
             if (atmsLocal != null) {
@@ -1302,7 +1110,6 @@ public class FrameworkHooker {
                 hookExecutable(m, "AMS#canShowErrorDialogs() -> false", chain -> false);
             }
         }
-        /** 干掉原生错误对话框 - 如果上述方法全部失效则直接结束对话框 */
         Method onCreate = methodOf(AppErrorDialogClass(), "onCreate", Bundle.class);
         hookExecutable(onCreate, "AppErrorDialog#onCreate(Bundle) -> cancel", chain -> {
             Object result = chain.proceed();
@@ -1315,32 +1122,23 @@ public class FrameworkHooker {
             if (chain.getThisObject() instanceof Dialog) ((Dialog) chain.getThisObject()).cancel();
             return result;
         });
-        /** 注入自定义错误对话框 */
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
-            // AOSP 签名（Android 12+ 各版本一致）：handleAppCrashLSPB(ProcessRecord app, String reason,
-            //     String shortMsg, String longMsg, String stackTrace, AppErrorDialog.Data data)
             Method m = methodOfParamCount(AppErrorsClass(), "handleAppCrashLSPB", 6);
             hookExecutable(m, "AppErrors#handleAppCrashLSPB(6) -> 自定义崩溃 UI", chain -> {
                     Object result = chain.proceed();
-                    /** 如果为用户终止则不展示异常 */
                     Object arg1 = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
                     if (arg1 instanceof String && "user-terminated".equals(arg1)) return result;
-                    /** 当前实例 */
                     Object thisObj = chain.getThisObject();
                     Context context = thisObj != null ? (Context) getField(thisObj, "mContext") : null;
                     if (context == null) return result;
                     ensureHostContext(context);
-                    /** 当前进程信息 */
                     Object proc = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                     if (proc == null) {
                         logError("Received but got null ProcessRecord (Show UI failed)");
                         return result;
                     }
-                    /** 当前错误数据 */
                     Object resultData = chain.getArgs().isEmpty() ? null : chain.getArgs().get(chain.getArgs().size() - 1);
-                    /** 创建 APP 进程异常数据类 */
-                    // ⚠️ 防死锁：投递到专用后台线程执行（hook 线程可能在 AMS 持锁上下文，
-                    //    同步 force-stop/notify 会与 NMS↔AMS 锁形成 AB-BA 死锁 → system_server watchdog 重启）
+                    // 防死锁：投到专用后台线程；AMS 持锁线程上同步 force-stop/notify 会 AB-BA 死锁
                     AppErrorsProcessData errData = new AppErrorsProcessData(thisObj, proc, resultData);
                     runOnBg(() -> handleShowAppErrorUi(errData, context));
                     return result;
@@ -1349,53 +1147,37 @@ public class FrameworkHooker {
             Method m = methodOf(AppErrorsClass(), "handleShowAppErrorUi", Message.class);
             hookExecutable(m, "AppErrors#handleShowAppErrorUi(Message) -> 自定义崩溃 UI (API<=R)", chain -> {
                     Object result = chain.proceed();
-                    /** 当前实例 */
                     Object thisObj = chain.getThisObject();
                     Context context = thisObj != null ? (Context) getField(thisObj, "mContext") : null;
                     if (context == null) return result;
                     ensureHostContext(context);
-                    /** 当前错误数据 */
                     Object resultData = null;
                     if (!chain.getArgs().isEmpty() && chain.getArgs().get(0) instanceof Message)
                         resultData = ((Message) chain.getArgs().get(0)).obj;
-                    /** 当前进程信息 */
                     Object proc = resultData != null ? getField(resultData, "proc") : null;
-                    /** 创建 APP 进程异常数据类 */
-                    // ⚠️ 防死锁：投递到专用后台线程执行（hook 线程可能在 AMS 持锁上下文，
-                    //    同步 force-stop/notify 会与 NMS↔AMS 锁形成 AB-BA 死锁 → system_server watchdog 重启）
                     AppErrorsProcessData errData = new AppErrorsProcessData(thisObj, proc, resultData);
                     runOnBg(() -> handleShowAppErrorUi(errData, context));
                     return result;
                 });
         }
-        /** 记录异常数据（ActivityController 路径） */
-        // AOSP 签名（Android 12+ 各版本一致）：handleAppCrashInActivityController(ProcessRecord r,
-        //     ApplicationErrorReport.CrashInfo crashInfo, String shortMsg, String longMsg,
-        //     String stackTrace, long timeMillis, int callingPid, int callingUid)
         Method handleAppCrashInActivityController = methodOfParamCount(AppErrorsClass(), "handleAppCrashInActivityController", 8);
         hookExecutable(handleAppCrashInActivityController, "AppErrors#handleAppCrashInActivityController(8) -> 记录崩溃数据", chain -> {
                 Object result = chain.proceed();
-                /** 当前实例 */
                 Object thisObj = chain.getThisObject();
                 Context context = thisObj != null ? (Context) getField(thisObj, "mContext") : null;
                 if (context == null) return result;
                 ensureHostContext(context);
-                /** 当前进程信息 */
                 Object proc = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                 if (proc == null) {
                     logError("Received but got null ProcessRecord");
                     return result;
                 }
-                /** 创建 APP 进程异常数据类 */
-                // ⚠️ 防死锁：同 handleShowAppErrorUi——记录(写文件/日志)也移出 AMS 持锁线程。
-                //    同一串行 bgHandler 保证「先记录 → 后展示」顺序与原来一致。
                 ApplicationErrorReport.CrashInfo crashInfo = chain.getArgs().size() > 1 && chain.getArgs().get(1) instanceof ApplicationErrorReport.CrashInfo
                         ? (ApplicationErrorReport.CrashInfo) chain.getArgs().get(1) : null;
                 AppErrorsProcessData recData = new AppErrorsProcessData(thisObj, proc, null);
                 runOnBg(() -> handleAppErrorsInfo(recData, context, crashInfo));
                 return result;
             });
-        /** 一次性输出全部 hook 注册结果 */
         printHookSummary();
     }
 
