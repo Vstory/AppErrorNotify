@@ -427,11 +427,18 @@ public class FunctionFactoryKt {
         }
     }
 
-    /** 隐藏或显示启动器图标 */
-    public static void hideOrShowLauncherIcon(Context context, boolean isShow) {
+    /**
+     * 隐藏或显示启动器图标（切换 {@code <包名>.Home} 别名组件的启用状态）。
+     *
+     * ⚠️ 参数语义（2026-09-30 改名，勿再读反）：{@code hide} 与「隐藏」**同向** ——
+     *    {@code true} = 隐藏（禁用 .Home 别名），{@code false} = 显示（启用别名）。
+     *    旧参数名 {@code isShow} 与传入语义**相反**（传 true 反而是禁用、即隐藏），
+     *    在调用处 `hideOrShowLauncherIcon(ctx, b)` 里完全读不出来，故改名。
+     */
+    public static void hideOrShowLauncherIcon(Context context, boolean hide) {
         context.getPackageManager().setComponentEnabledSetting(
                 new ComponentName(context.getPackageName(), BuildConfigWrapper.APPLICATION_ID + ".Home"),
-                isShow ? PackageManager.COMPONENT_ENABLED_STATE_DISABLED : PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                hide ? PackageManager.COMPONENT_ENABLED_STATE_DISABLED : PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                 PackageManager.DONT_KILL_APP);
     }
 

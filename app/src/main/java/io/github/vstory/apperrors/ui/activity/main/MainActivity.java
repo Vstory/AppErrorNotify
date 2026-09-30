@@ -109,9 +109,10 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> {
         binding.linkWithFollowMe.setOnClickListener(v -> handleEasterEggClick());
         /** 设置桌面图标显示隐藏 */
         binding.hideIconInLauncherSwitch.setChecked(!FunctionFactoryKt.isLauncherIconShowing(this));
-        binding.hideIconInLauncherSwitch.setOnCheckedChangeListener((btn, b) -> {
+        binding.hideIconInLauncherSwitch.setOnCheckedChangeListener((btn, hide) -> {
             if (!btn.isPressed()) return;
-            FunctionFactoryKt.hideOrShowLauncherIcon(this, b);
+            /** 开关勾选态即「隐藏」语义（见 hideOrShowLauncherIcon 的参数说明），故直接透传 */
+            FunctionFactoryKt.hideOrShowLauncherIcon(this, hide);
         });
         /** 信息卡：填充设备/框架信息（参考 LSPosed 概览页 info_card） */
         initInfoCard();
