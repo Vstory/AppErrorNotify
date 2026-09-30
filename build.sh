@@ -37,6 +37,12 @@ if ! java -version 2>&1 | grep -q "17\."; then
 fi
 echo "✅ 使用 JDK17: $(java -version 2>&1 | head -1)"
 
+# aapt2 覆盖：仅 arm64 需要（Maven 的 aapt2 是 x86_64），值在用户级 ~/.gradle/gradle.properties
+if [ "$(uname -m)" = "aarch64" ] && \
+   ! grep -qs '^android\.aapt2FromMavenOverride=' gradle.properties "$HOME/.gradle/gradle.properties"; then
+    echo "⚠️ arm64 但未设 android.aapt2FromMavenOverride → 将报 aapt2: cannot execute"
+fi
+
 # 📌 模块名（输出 APK 文件名，参照 RikkaTune）
 MODULE_NAME="AppErrorNotify"
 
