@@ -398,9 +398,11 @@ jobs:
             printf '%s\n' "$OUT"
             exit 1
           fi
-          # 指纹行格式随 build-tools 版本变化，两种都认：
+          # 指纹行格式随 build-tools 版本变化，三种都认：
           #   旧：Signer #1 certificate SHA-256 digest: <hex>
-          #   37：V2 Signer: certificate SHA-256 digest: <hex>
+          #   37（仅 v2）：V2 Signer: certificate SHA-256 digest: <hex>
+          #   37（v2+v3）：V3.0 Signer: certificate SHA-256 digest: <hex> —— 开了 v3 就只打最高方案那行
+          # ⚠️ 上面各行的证书是同一把，故取哪一行都对；下面还要求非空，格式再变也只失败在这里、不会静默放行。
           # （只取第一条 SHA-256；下面还要求非空，故格式再变也只会失败在这里而不是静默放行）
           DIGEST="$(printf '%s' "$OUT" | sed -nE 's/^.*certificate SHA-256 digest: ([0-9a-fA-F]+).*$/\1/p' | head -1)"
           [ -n "$DIGEST" ] || { echo "::error::$NAME 读不到签名证书指纹（apksigner 未能解析产物）"; printf '%s\n' "$OUT"; exit 1; }
@@ -414,16 +416,19 @@ jobs:
           fi
           echo "  ✅ 签名有效，指纹与固定密钥一致：$ACTUAL"
 
-          # ⑥ 签名方案须含 **v2**（Android 7+ 的安装/覆盖升级靠它）。
-          #    实测（build-tools 37.0.0，本地产物）：v1 与 v3 均为 false —— 虽 enableV1Signing=true，
-          #    实际只产出 v2。故此处只断言 v2，不断言 v1/v3（加了会误报）。
+          # ⑥ 签名方案须含 **v2 与 v3**：v2 管 Android 7+ 的安装/覆盖升级，v3 管密钥轮换（Android 9+）
+          #    —— 有 v3 才能将来换钥时平滑升级，而不是让所有用户卸载重装。
+          #    不断言 v1：它只服务 Android ≤6.0，而本项目 minSdk=26（实测显式 enableV1Signing=true
+          #    也不产出 v1），断言它必然误报。
           VERBOSE="$("$APKSIGNER" verify --verbose "$APK" 2>&1 || true)"
-          printf '%s' "$VERBOSE" | grep -qE 'Verified using v2 scheme.*: true' \
-            || { echo "::error::$NAME 未启用 v2 签名方案 —— 拒绝发布"; printf '%s\n' "$VERBOSE"; exit 1; }
-          echo "  ✅ 签名方案含 v2"
+          for scheme in v2 v3; do
+            printf '%s' "$VERBOSE" | grep -qE "Verified using ${scheme} scheme.*: true" \
+              || { echo "::error::$NAME 未启用 ${scheme} 签名方案 —— 拒绝发布"; printf '%s\n' "$VERBOSE"; exit 1; }
+          done
+          echo "  ✅ 签名方案含 v2 + v3"
 
           echo "CERT_SHA256=$ACTUAL" >> "$GITHUB_ENV"
-          echo "SIGN_SCHEMES=v2" >> "$GITHUB_ENV"
+          echo "SIGN_SCHEMES=v2+v3" >> "$GITHUB_ENV"
 
       # 正文生成。ci 页永远自动生成（滚动页，正文里必须带「最新构建」直链）；release 页优先用
       # 人工正文，缺失时才回退到下面的自动生成。

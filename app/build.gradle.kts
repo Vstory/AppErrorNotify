@@ -28,8 +28,10 @@ android {
             storePassword = localProps.getProperty("storePassword")
             keyAlias = localProps.getProperty("keyAlias")
             keyPassword = localProps.getProperty("keyPassword")
-            enableV1Signing = true
+            // v1（JAR 签名）只服务 Android ≤6.0，而 minSdk=26 ⇒ 不启用
+            // （实测：显式 enableV1Signing=true 也不产出 v1，写它只是假象）
             enableV2Signing = true
+            enableV3Signing = true
         }
     }
     defaultConfig {
