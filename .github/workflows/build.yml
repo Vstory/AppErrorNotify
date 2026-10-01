@@ -46,13 +46,16 @@ permissions:
   contents: write   # 发布 Release 需要写权限
 
 # 供应链加固：第三方 action 一律钉到 commit SHA（可变 tag 被上游改动/账号被盗后投毒的风险）。
-# SHA 取自同账号现役工作流（MxPlayerTune/.github/workflows/build.yml，已验证可用）。
+# SHA 取自各 action 官方 release tag 指向的 commit（同账号 MxPlayerTune 现役工作流可交叉验证 4 个，
+# 它没有 upload-artifact）。
 env:
   JAVA_VERSION: '17'
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # ⚠️ 显式钉 26.04 而不用 ubuntu-latest：官方 2026-10-19 起把 latest 滚到 26.04（runner-images#14748），
+    #    钉住即可先实测再随迁。26.04 镜像的 Android SDK 与 24.04 同路径同版本，仅 cmdline-tools 12.0→20.0。
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -558,10 +561,12 @@ jobs:
           echo "=== 生成的 release 说明 ==="
           cat "$BODY"
 
-      # ⚠️ artifact 名必须带 run_number：upload-artifact v4 **拒绝同名 artifact**（不是覆盖），
+      # ⚠️ artifact 名必须带 run_number：upload-artifact 拒绝同名 artifact（不是覆盖），
       #    而「同一 commit、同一分钟内重复触发」（调 CI 时很常见）会让 ts 与短号都相同 ⇒ 直接失败。
+      # ⚠️ 不得退回 v4：v4 及以下是 node20，runner 会强制它们在 node24 上跑并每条 warn 一次
+      #    （v6 起才原生 node24）。name/path/if-no-files-found 三个入参在 v5~v7 未变，升级无需改用法。
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: AppErrorNotify-${{ steps.info.outputs.ts }}-${{ steps.info.outputs.short }}-${{ github.run_number }}
           path: dist/*.apk
