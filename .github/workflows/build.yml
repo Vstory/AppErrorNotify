@@ -364,8 +364,12 @@ jobs:
 
           BADGING="$("$AAPT2" dump badging "$APK" 2>/dev/null || true)"
 
+          # ⚠️ 本步骤每个 `VAR="$(... | grep ...)"` 都带 `|| true`：grep 无匹配时返回 1，在 Actions 的
+          #    `bash -e` 下会让赋值语句整体失败 ⇒ 脚本**静默**退出（日志里只剩 "Process completed
+          #    with exit code 1."，看不出是哪条断言挂了）。故一律「先抓、再显式判空报错」。
           # ③ 版本号必须与 build.gradle.kts 一致 —— 防「改了 gradle 但产物名/内容对不上」的静默漂移
-          PKG_LINE="$(printf '%s' "$BADGING" | grep -m1 "^package:")"
+          PKG_LINE="$(printf '%s' "$BADGING" | grep -m1 "^package:" || true)"
+          [ -n "$PKG_LINE" ] || { echo "::error::$NAME 读不到 badging 的 package 行"; exit 1; }
           printf '%s' "$PKG_LINE" | grep -q "versionCode='${CODE}'" \
             || { echo "::error::$NAME 的 versionCode 与源码不符（期望 ${CODE}）：$PKG_LINE"; exit 1; }
           printf '%s' "$PKG_LINE" | grep -q "versionName='${VER}'" \
@@ -376,10 +380,13 @@ jobs:
           #    本项目 localeFilters 踩过两次坑（写 "zh" 匹配不到 values-zh-rCN ⇒ 中文整个消失；
           #    写 BCP-47 "zh-CN" 会让 aapt2 直接报错），所以这里同时断言「中文在」与「无多余语言」——
           #    依赖库（Material / AppCompat）自带 80 余种翻译，一旦 localeFilters 失效会静默全进包。
-          LOCALES="$(printf '%s' "$BADGING" | grep -m1 '^locales:')"
+          LOCALES="$(printf '%s' "$BADGING" | grep -m1 '^locales:' || true)"
+          [ -n "$LOCALES" ] || { echo "::error::$NAME 读不到 badging 的 locales 行"; exit 1; }
           printf '%s' "$LOCALES" | grep -q "'zh-CN'" \
             || { echo "::error::$NAME 中文资源缺失（localeFilters 失效）：$LOCALES"; exit 1; }
-          EXTRA="$(printf '%s' "$LOCALES" | tr ' ' '\n' | grep "^'" | grep -vE "^'--_--'$|^'zh-CN'$")"
+          # 这里 `|| true` 是**必需**而非防御：`grep -v` 在「一条都没剩下」时返回 1，而「没有多余语言」
+          # 恰恰是期望状态 ⇒ 少了它，语言裁剪正常反而让构建失败。
+          EXTRA="$(printf '%s' "$LOCALES" | tr ' ' '\n' | grep "^'" | grep -vE "^'--_--'$|^'zh-CN'$" || true)"
           [ -z "$EXTRA" ] \
             || { echo "::error::$NAME 含多余语言，localeFilters 未生效：$EXTRA"; exit 1; }
           echo "  ✅ 语言裁剪生效：$LOCALES"
