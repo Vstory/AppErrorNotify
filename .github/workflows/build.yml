@@ -231,7 +231,7 @@ jobs:
 
           # 固定密钥的证书指纹（SHA-256，大写无冒号）。**换密钥时必须同步改本行**
           # （取法：keytool -list -v 里的 SHA256，去冒号转大写）。
-          EXPECTED_CERT_SHA256="1F3A4525BFC903048F9DC4C15C602B427D1B7F4C080341A6297892E499569F27"
+          EXPECTED_CERT_SHA256="8D1B6022D3E3BB837A3BA1870E0EEAC8650F9470B8287EDF549DACEC9E9E2A64"
 
           APK="$(ls dist/*.apk)"
           NAME="$(basename "$APK")"
