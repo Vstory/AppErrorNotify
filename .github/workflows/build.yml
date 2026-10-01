@@ -505,19 +505,15 @@ jobs:
 
           # ci 页列历史构建（排除本次），最多 5 条 —— 加「最新构建」共 6 组，与清理的保留数一致。
           # ⚠️ 必须查 TARGET_TAG（不能写死 ci），否则正式版页会去列 ci 页的产物、链接全 404。
-          # 来源分支取自 asset 的 label（下一步写入）；label 缺失（旧 asset 或写入失败）就显示 ——
-          # 本页汇总的是**所有分支**的包，而产物名里没有分支 ⇒ 不显示分支等于让人猜。
           if [ "$CHANNEL" = "ci" ]; then
             mapfile -t PREV < <(gh api --paginate \
               -H "Accept: application/vnd.github+json" \
               "repos/${REPO}/releases/tags/${TARGET_TAG}" \
-              --jq '.assets[] | [(.label // "-"), .name] | @tsv' 2>/dev/null \
-              | while IFS=$'\t' read -r label name; do
+              --jq '.assets[].name' 2>/dev/null \
+              | while read -r name; do
                   k="$(sed -nE 's/^(.*)_([0-9]{8}-[0-9]{4})_([0-9a-f]{8})\.apk$/\2|\3/p' <<< "$name")"
                   [ -n "$k" ] || continue
-                  # name 排在 label 前：name 已被命名规则限定为 [A-Za-z0-9._-]，label（分支名）却
-                  # 允许含 `|`，故让可能含 `|` 的字段当末位变量，由 read 整体吸收。
-                  printf '%s|%s|%s\n' "$k" "$name" "$label"
+                  printf '%s|%s\n' "$k" "$name"
                 done \
               | grep -v "^${TS}|${SHORT}|" | sort -u -r | head -5)
             if [ "${#PREV[@]}" -gt 0 ]; then
@@ -527,9 +523,9 @@ jobs:
                 echo
               } >> "$BODY"
               for row in "${PREV[@]}"; do
-                IFS='|' read -r p_ts p_sha p_full p_label <<< "$row"
+                IFS='|' read -r p_ts p_sha p_full <<< "$row"
                 pd="${p_ts:0:4}-${p_ts:4:2}-${p_ts:6:2} ${p_ts:9:2}:${p_ts:11:2}"
-                echo "- **${pd}** · \`${p_sha}\` · \`${p_label}\` — [下载](${BASE}/${p_full})" >> "$BODY"
+                echo "- **${pd}** · \`${p_sha}\` — [下载](${BASE}/${p_full})" >> "$BODY"
               done
             fi
           fi
@@ -539,7 +535,7 @@ jobs:
             echo "---"
             if [ "$CHANNEL" = "ci" ]; then
               echo "文件名规则 = \`<应用名>_<版本>-<code>_<时间>_<短号>.apk\`（时间=北京时间，短号=SHA 前 8 位），按时间戳追加、不覆盖旧包。"
-              echo "本页汇总**所有分支**的自动构建，而产物名里没有分支 ⇒ 对照上方表格的「来源分支」，或 Assets 列表里文件名旁的灰色标签。"
+              echo "本页汇总**所有分支**的自动构建，产物名里没有分支 ⇒ 来源分支见上方表格的「来源分支」行。"
               echo "下方 **Assets 列表由 GitHub 按上传时间（旧 → 新）排列，无法调整** —— 请以上方表格为准取最新包。"
             else
               echo "文件名规则 = \`<应用名>.<版本>.<code>.release.apk\`（沿用本项目历史正式版命名，与 Releases 里的旧版本一致）。"
@@ -569,42 +565,6 @@ jobs:
           make_latest: ${{ steps.target.outputs.make_latest }}
           body_path: release_body.md
           files: dist/*.apk
-
-      # 分支信息挂到 asset 的 **label** 上（产物名不带分支）：Release 页的 Assets 列表会把它显示在
-      #   文件名旁，正文的历史列表也读它。一页汇总所有分支时，十几个
-      #   `AppErrorNotify_1.18-81_<时间>_<短号>.apk` 若不标分支就完全看不出谁是谁。
-      #   只做 ci：release 页的产物必然来自 master（有守卫），标了没有信息量。
-      #   失败只告警不中断 —— 标签是可用性优化，不该让一个已经发出去的包变成一次失败构建。
-      - name: Label asset with source branch
-        if: steps.target.outputs.channel == 'ci'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TARGET_TAG: ${{ steps.target.outputs.tag }}
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          REPO="${{ github.repository }}"
-          ID=""
-          for i in 1 2 3 4 5 6; do
-            ID="$(gh api --paginate \
-              -H "Accept: application/vnd.github+json" \
-              "repos/${REPO}/releases/tags/${TARGET_TAG}" \
-              --jq ".assets[] | select(.name == \"${APK_NAME}\") | .id" 2>/dev/null | head -1)"
-            [ -n "$ID" ] && break
-            echo "asset 尚未可见（$i/6），10s 后重试…"
-            sleep 10
-          done
-
-          if [ -z "$ID" ]; then
-            echo "::warning::找不到本次产物对应的 asset，跳过来源分支标签（产物本身正常）"
-            exit 0
-          fi
-
-          if gh api -X PATCH -H "Accept: application/vnd.github+json" \
-               "repos/${REPO}/releases/assets/${ID}" -f "label=${BRANCH}" >/dev/null 2>&1; then
-            echo "✅ 已标记来源分支：${BRANCH}"
-          else
-            echo "::warning::写入来源分支标签失败（产物本身正常）"
-          fi
 
       # ci 页保留最近 6 组构建，其余删除（正式版每版一页，不清理）。
       # ⚠️ 用「保留最新 6 组」的不变式，而**不是**「总数 - 6」计数法：计数法基于某一时刻的快照
