@@ -56,6 +56,12 @@ jobs:
     # ⚠️ 显式钉 26.04 而不用 ubuntu-latest：官方 2026-10-19 起把 latest 滚到 26.04（runner-images#14748），
     #    钉住即可先实测再随迁。26.04 镜像的 Android SDK 与 24.04 同路径同版本，仅 cmdline-tools 12.0→20.0。
     runs-on: ubuntu-26.04
+    # checkout 内部的 `git init` 会为默认分支名打 16 行 hint（那个空仓库随即被覆盖，分支名不参与构建）。
+    # 写 ~/.gitconfig 压不住 —— checkout 期间会临时改写 HOME；环境变量等同命令行 -c，优先级高于 global。
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: init.defaultBranch
+      GIT_CONFIG_VALUE_0: main
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
