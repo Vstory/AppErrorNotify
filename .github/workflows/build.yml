@@ -162,8 +162,11 @@ jobs:
       #      带手写双语 notes），要重发请先 bump versionCode。
       #
       # 产物命名两渠道不同，各自成式：
-      #   ci      = <应用名>_<版本>-<code>_<时间>_<短号>.apk  —— 同页追加多包，靠时间戳+短号区分
-      #   release = <应用名>.<版本>.<code>.release.apk        —— 沿用本项目正式版命名
+      #   ci      = <应用名>_<版本>.<code>_<时间>_ci_<短号>.apk  —— 同页追加多包，靠时间戳+短号区分
+      #   release = <应用名>.<版本>.<code>.release.apk           —— 沿用本项目正式版命名
+      #   · ci 名里的 `ci` 段是**渠道标记**：ci 页与正式版页的包外观几乎一样，而 ci 页汇总的是
+      #     未验证代码的产物 ⇒ 下载到手后必须一眼能看出这不是正式包（与 RikkaHub-X 同思路）。
+      #     ⚠️ 历史 asset 用旧名（无渠道段），解析历史/清理的正则必须同时认两种。
       #   · 应用名取 Manifest 的 android:label，再解一层 @string 引用 —— 不写死字面量，避免第二份来源
       #   · ⚠️ 圆括号在 URL 里需转义，而下载链接由资产名拼出 ⇒ 一律用 `-`/`.` 连接，名里不得出现括号
       - name: Resolve release target and APK name
@@ -224,7 +227,7 @@ jobs:
             echo "→ release 渠道：tag=${TAG}（正式版，每版一页）"
           else
             CHANNEL=ci
-            APK_NAME="${PREFIX}_${VER}-${CODE}_${TS}_${SHORT}.apk"
+            APK_NAME="${PREFIX}_${VER}.${CODE}_${TS}_${CHANNEL}_${SHORT}.apk"
             {
               echo "tag=ci"
               echo "name=CI Build"
@@ -314,7 +317,7 @@ jobs:
           #   正文链接与清理都按资产名匹配，改名漏改会静默错（下载 404 / 历史列表整段消失 / 旧资产永不清理）
           case "$CHANNEL" in
             release) RE='^[A-Za-z0-9._-]+\.release\.apk$' ;;
-            *)       RE='^[A-Za-z0-9._-]+_[0-9]{8}-[0-9]{4}_[0-9a-f]{8}\.apk$' ;;
+            *)       RE='^[A-Za-z0-9._-]+_[0-9]{8}-[0-9]{4}_(ci|release)_[0-9a-f]{8}\.apk$' ;;
           esac
           shopt -s nullglob
           apks=(dist/*.apk)
@@ -442,6 +445,13 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
+          # 解析「构建键」= 时间戳|短号。两套命名都认：现名带渠道段（…_<时间>_ci_<短号>.apk），
+          # 历史 asset 无渠道段。解析不出返回空 ⇒ 调用方据此判定「不是本渠道的滚动产物」。
+          parsed_key() {
+            sed -nE -e 's/^(.*)_([0-9]{8}-[0-9]{4})_[a-z]+_([0-9a-f]{8})\.apk$/\2|\3/p' \
+                     -e 's/^(.*)_([0-9]{8}-[0-9]{4})_([0-9a-f]{8})\.apk$/\2|\3/p' <<< "$1"
+          }
+
           BODY="${GITHUB_WORKSPACE}/release_body.md"
           MANUAL="${GITHUB_WORKSPACE}/.github/release-notes/v${VER}.${CODE}.md"
 
@@ -505,13 +515,14 @@ jobs:
 
           # ci 页列历史构建（排除本次），最多 5 条 —— 加「最新构建」共 6 组，与清理的保留数一致。
           # ⚠️ 必须查 TARGET_TAG（不能写死 ci），否则正式版页会去列 ci 页的产物、链接全 404。
+          # 解析键 = 时间戳 + 短号，两套命名都要认（新旧 asset 混在同一页）。
           if [ "$CHANNEL" = "ci" ]; then
             mapfile -t PREV < <(gh api --paginate \
               -H "Accept: application/vnd.github+json" \
               "repos/${REPO}/releases/tags/${TARGET_TAG}" \
               --jq '.assets[].name' 2>/dev/null \
               | while read -r name; do
-                  k="$(sed -nE 's/^(.*)_([0-9]{8}-[0-9]{4})_([0-9a-f]{8})\.apk$/\2|\3/p' <<< "$name")"
+                  k="$(parsed_key "$name")"
                   [ -n "$k" ] || continue
                   printf '%s|%s\n' "$k" "$name"
                 done \
@@ -534,8 +545,9 @@ jobs:
             echo
             echo "---"
             if [ "$CHANNEL" = "ci" ]; then
-              echo "文件名规则 = \`<应用名>_<版本>-<code>_<时间>_<短号>.apk\`（时间=北京时间，短号=SHA 前 8 位），按时间戳追加、不覆盖旧包。"
+              echo "文件名规则 = \`<应用名>_<版本>.<code>_<时间>_<渠道>_<短号>.apk\`（时间=北京时间，短号=SHA 前 8 位），按时间戳追加、不覆盖旧包；早期包用旧名（无渠道段）。"
               echo "本页汇总**所有分支**的自动构建，产物名里没有分支 ⇒ 来源分支见上方表格的「来源分支」行。"
+              echo "本页地址**永久固定**（可从仓库 README 直达、可收藏）—— GitHub 的 Release 列表按**创建时间**排列且无置顶机制，故本页会随下一版正式版发布而下移，固定入口请用本页 URL。"
               echo "下方 **Assets 列表由 GitHub 按上传时间（旧 → 新）排列，无法调整** —— 请以上方表格为准取最新包。"
             else
               echo "文件名规则 = \`<应用名>.<版本>.<code>.release.apk\`（沿用本项目历史正式版命名，与 Releases 里的旧版本一致）。"
@@ -580,19 +592,24 @@ jobs:
           sleep 30   # 等本次上传的 asset 在 API 中可见
 
           # 一次性取全部 asset 的 (id, name)：只取一次，避免两次请求的快照不一致
+          # ⚠️ 过滤正则必须与命名规则同步：漏了渠道段（现名带 `_ci_`）⇒ 新包全被排除在清理之外，
+          #    页面会无限增长；反过来过宽则会误删。故写成「有/无渠道段都认」。
           mapfile -t ASSETS < <(gh api --paginate \
             -H "Accept: application/vnd.github+json" \
             "repos/${{ github.repository }}/releases/tags/${TARGET_TAG}" \
-            --jq '.assets[] | select(.name | test("_[0-9]{8}-[0-9]{4}_[0-9a-f]{8}\\.apk$")) | [.id, .name] | @tsv')
+            --jq '.assets[] | select(.name | test("_[0-9]{8}-[0-9]{4}_(?:[a-z]+_)?[0-9a-f]{8}\\.apk$")) | [.id, .name] | @tsv')
           echo "匹配命名规则的 asset 共 ${#ASSETS[@]} 个"
 
-          # 从文件名解析「构建键」= "构建时间戳 短号"；解析不出键的（旧命名）视为待清理
-          key_of() { sed -nE 's/^(.*)_([0-9]{8}-[0-9]{4})_([0-9a-f]{8})\.apk$/\2 \3/p' <<< "$1"; }
+          # 与 Generate release body 里同名函数保持一致：解析不出键的视为待清理
+          parsed_key() {
+            sed -nE -e 's/^(.*)_([0-9]{8}-[0-9]{4})_[a-z]+_([0-9a-f]{8})\.apk$/\2|\3/p' \
+                     -e 's/^(.*)_([0-9]{8}-[0-9]{4})_([0-9a-f]{8})\.apk$/\2|\3/p' <<< "$1"
+          }
 
           KEYS_FILE="$(mktemp)"
           while IFS=$'\t' read -r _id name; do
             [ -n "$name" ] || continue
-            key_of "$name"
+            parsed_key "$name"
           done < <(printf '%s\n' "${ASSETS[@]}") | sort -u -r > "$KEYS_FILE"
 
           declare -A KEEP=()
@@ -609,7 +626,7 @@ jobs:
           failed=0
           while IFS=$'\t' read -r id name; do
             [ -n "$id" ] || continue
-            k="$(key_of "$name")"
+            k="$(parsed_key "$name")"
             if [ -n "$k" ] && [ -n "${KEEP[$k]:-}" ]; then continue; fi
             if gh api -X DELETE -H "Accept: application/vnd.github+json" \
                  "repos/${{ github.repository }}/releases/assets/$id" >/dev/null 2>&1; then
