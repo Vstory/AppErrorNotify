@@ -1,5 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
+}
+
+// 签名：默认用仓库内置的通用密钥库（.secret/universal.p12）；local.properties 若给出
+// storeFile/storePassword/keyAlias/keyPassword 则以其为准 —— CI 用它注入固定密钥，
+// 口令含 $ ! & 等字符，走文件传递可避开 shell 二次展开。
+// ⚠️ 与 MxPlayerTune 的差别：那边是「无 local.properties ⇒ 不挂签名配置」，本项目必须**始终**
+//    有签名配置：AGP 在 signingConfig 缺失时不报错，而是静默产出 app-release-unsigned.apk
+//    （看着构建成功，装不上）—— 故此处是覆盖而非有无。
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -9,10 +22,11 @@ android {
 
     signingConfigs {
         create("universal") {
-            keyAlias = "public"
-            keyPassword = "123456"
-            storeFile = rootProject.file(".secret/universal.p12")
-            storePassword = "123456"
+            keyAlias = localProps.getProperty("keyAlias") ?: "public"
+            keyPassword = localProps.getProperty("keyPassword") ?: "123456"
+            storeFile = localProps.getProperty("storeFile")?.let { rootProject.file(it) }
+                ?: rootProject.file(".secret/universal.p12")
+            storePassword = localProps.getProperty("storePassword") ?: "123456"
             enableV1Signing = true
             enableV2Signing = true
         }
