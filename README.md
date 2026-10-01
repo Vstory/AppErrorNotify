@@ -76,6 +76,10 @@
 3. 触发应用崩溃 → 收到崩溃通知；打开模块查看异常记录与详情
 
 > 最新版本与下载：见 [GitHub Releases](https://github.com/Vstory/AppErrorNotify/releases)。
+>
+> - **正式版**（推荐）：上面的版本页（如 `v1.18.81`），固定密钥签名、可直接覆盖升级。
+> - **测试版**（未验证代码）：**[CI Build](https://github.com/Vstory/AppErrorNotify/releases/tag/ci)** —— 地址永久固定，
+>   push 任意分支即出包，只保留最近 6 个；`ci` 渠道是**滚动页**，包名里带 `_ci_` 标记，与正式版区分。
 
 ## License
 

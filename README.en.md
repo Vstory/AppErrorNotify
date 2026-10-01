@@ -76,6 +76,11 @@ If the same app crashes repeatedly within a short window (crash storm), the modu
 3. Trigger an app crash → receive a crash notification; open the module to browse history and details
 
 > Latest version & downloads: see [GitHub Releases](https://github.com/Vstory/AppErrorNotify/releases).
+>
+> - **Stable** (recommended): the version page above (e.g. `v1.18.81`) — fixed-key signed, in-place upgradeable.
+> - **Test builds** (unverified code): **[CI Build](https://github.com/Vstory/AppErrorNotify/releases/tag/ci)** — a permanent
+>   URL, updated on every push to any branch, only the latest 6 builds are kept; the `ci` channel is a **rolling page**
+>   and its APK names carry a `_ci_` marker to tell them apart from stable builds.
 
 ## License
 
