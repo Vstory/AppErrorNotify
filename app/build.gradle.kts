@@ -1,5 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
+}
+
+// 签名：唯一来源是 local.properties 的四个键（钥在 /workspace/tokens/Signing/，不在仓库里）。
+// 口令含 $ ! & 等字符，走文件传递可避开 shell 二次展开。
+// ⚠️ 缺项必须在配置期就炸掉：AGP 在 signingConfig 缺失时不报错，而是静默产出
+//    app-release-unsigned.apk（看着构建成功，装不上）。故用 require 而非默认值。
+// ⚠️ 与 MxPlayerTune 的差别：那边是「无 local.properties ⇒ 不挂签名配置」，本项目是硬要求。
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -9,12 +21,17 @@ android {
 
     signingConfigs {
         create("universal") {
-            keyAlias = "public"
-            keyPassword = "123456"
-            storeFile = rootProject.file(".secret/universal.p12")
-            storePassword = "123456"
-            enableV1Signing = true
+            val missing = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+                .filter { localProps.getProperty(it).isNullOrBlank() }
+            require(missing.isEmpty()) { "local.properties 缺少签名项: $missing（参见 dev-guide 构建方案）" }
+            storeFile = rootProject.file(localProps.getProperty("storeFile"))
+            storePassword = localProps.getProperty("storePassword")
+            keyAlias = localProps.getProperty("keyAlias")
+            keyPassword = localProps.getProperty("keyPassword")
+            // v1（JAR 签名）只服务 Android ≤6.0，而 minSdk=26 ⇒ 不启用
+            // （实测：显式 enableV1Signing=true 也不产出 v1，写它只是假象）
             enableV2Signing = true
+            enableV3Signing = true
         }
     }
     defaultConfig {
