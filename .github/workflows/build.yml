@@ -1,0 +1,355 @@
+name: Build
+
+# 运行标题：多跑几次时用于辨认批次（分支 + 短号）。
+run-name: "Build · ${{ github.ref_name }} · ${{ github.sha }}"
+
+# 触发：
+#   - push master → 自动构建
+#   - 手动 → 同样构建（无参数）
+# 每次构建产出**一个包**，发进**一个新 Release**（tag = `<版本>-<code>_<时间>_<短号>`）：
+#   不往固定页滚动更新 ⇒ 每个版本各有独立页面，历史可逐页回看。
+# 纯文档改动不重建（无产物价值，白耗额度）。
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:
+
+# 并发：串行排队，避免两次运行同时发布（tag 互不相同，这里只是避免互相拖慢与日志交错）。
+# 不用 cancel-in-progress —— 中途取消可能留下半个上传状态。
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # 发布 Release 需要写权限
+
+# 供应链加固：第三方 action 一律钉到 commit SHA（可变 tag 被上游改动/账号被盗后投毒的风险）。
+# SHA 取自同账号现役工作流（MxPlayerTune/.github/workflows/build.yml，已验证可用）。
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0   # AGP 会往 APK 里写 version-control-info，需要完整 git 信息
+
+      - name: Set up JDK
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # Android SDK：项目 compileSdk=37 + buildToolsVersion=37.0.0，runner 预装镜像里没有。
+      #   ⚠️ platform-37 在官方仓库里是**带小数**的名字（platforms;android-37.2），
+      #   `platforms;android-37` 不存在；而 AGP 按 compileSdk=37 找的是 platforms/android-37 目录
+      #   ⇒ 装完必须归位目录名（与开发机手工安装同一套做法）。
+      - name: Set up Android SDK 37
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKM="$(command -v sdkmanager || echo "$SDK/cmdline-tools/latest/bin/sdkmanager")"
+          echo "SDK=$SDK"
+          echo "sdkmanager=$SDKM"
+
+          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
+          "$SDKM" "build-tools;37.0.0" >/dev/null 2>&1 \
+            || sudo "$SDKM" "build-tools;37.0.0" >/dev/null 2>&1 || true
+
+          if [ ! -f "$SDK/platforms/android-37/android.jar" ]; then
+            echo "安装 platform 37（手动解压 + 归位目录名）"
+            curl -fsSL -o /tmp/platform-37.zip \
+              "https://dl.google.com/android/repository/platform-37.2_r01.zip"
+            rm -rf /tmp/p37 && mkdir -p /tmp/p37
+            unzip -q /tmp/platform-37.zip -d /tmp/p37
+            sudo mkdir -p "$SDK/platforms"
+            sudo rm -rf "$SDK/platforms/android-37"
+            sudo mv /tmp/p37/android-37.2 "$SDK/platforms/android-37"
+          fi
+
+          # 断言：缺一即在此失败，不留到 Gradle 报含糊错
+          test -f "$SDK/platforms/android-37/android.jar" \
+            || { echo "::error::platforms/android-37 就位失败"; exit 1; }
+          test -x "$SDK/build-tools/37.0.0/aapt2" \
+            || { echo "::error::build-tools 37.0.0 就位失败"; exit 1; }
+          echo "platforms: $(ls "$SDK/platforms" | tr '\n' ' ')"
+          echo "build-tools: $(ls "$SDK/build-tools" | tr '\n' ' ')"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+      - name: Gradle cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Compute build info
+        id: info
+        run: |
+          NOW=$(date +%s)
+          echo "short=${GITHUB_SHA:0:8}" >> "$GITHUB_OUTPUT"
+          echo "ts=$(TZ=Asia/Shanghai date -d "@$NOW" +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+      # 签名：从仓库 secrets 解码**固定密钥**（公用钥，见 tokens/Signing/）到 `ci-signing.jks`。
+      #   ⚠️ 4 个 secret 是配套的一组，改名要四处同改：本处、
+      #      tokens/Signing/scripts/sync-signing-secrets.py 的 SECRET_FROM_KEY、
+      #      tokens/Signing/README.md、知识库 凭证运维/README.md。
+      #   ⚠️ secret 一律经 env 传入、run 里只引用变量名 —— 不把 ${{ secrets.X }} 写进 run 正文：
+      #      值里若含 `$` 或反引号会被 shell 二次展开（实测口令含 $ 时被吃成前半截，且在签名报错前毫无提示）。
+      #   ⚠️ 缺 secret 时**直接失败**，不回退到未签名/调试签名 —— 回退的后果是产物看着"构建成功"、
+      #      签名却不对，要等安装升级时才发现（AGP 缺 signingConfig 时不报错，而是产出 -unsigned.apk）。
+      - name: Prepare signing (fixed key from secrets)
+        env:
+          KEY_BASE64: ${{ secrets.KEY_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          missing=""
+          for v in KEY_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::缺少签名 secret:$missing —— 拒绝回退（那会让产物无法覆盖升级）"
+            exit 1
+          fi
+
+          KS="$GITHUB_WORKSPACE/ci-signing.jks"
+          printf '%s' "$KEY_BASE64" | base64 -d > "$KS"
+
+          # 就地自检：解出的库能否用该口令打开、别名是否存在。
+          #   否则「KEY_BASE64 其实是另一个库 / 口令与 secret 不一致」会拖到 AGP 签名阶段才报错，且信息含糊。
+          keytool -list -keystore "$KS" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null 2>&1 \
+            || { echo "::error::密钥库打不开或别名不存在 —— 核对 KEY_BASE64 / SIGNING_STORE_PASSWORD / SIGNING_KEY_ALIAS"; exit 1; }
+          echo "已校验：密钥库可打开、别名存在"
+
+          # 签名参数经 local.properties 注入 —— app/build.gradle.kts 用它**覆盖**内置的公开密钥库默认值
+          #   （是覆盖而非有无：那里必须始终有 signingConfig，AGP 缺它时不报错、静默产出 -unsigned.apk）。
+          #   口令走文件传递，避开 shell 二次展开；storeFile 现场拼绝对路径，不写死 runner 上的布局。
+          {
+            printf 'storeFile=%s\n' "$KS"
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } >> local.properties
+          echo "已按固定密钥配置签名"
+
+      - name: Gradle build
+        run: |
+          chmod +x gradlew
+          # 只构建 release：本项目构建层**不分 debug/release**（见 build.sh 头注释）——
+          #   调试日志由 UI 开关 ConfigData.isEnableDebug 运行时控制，Debug.d 调用在正式包里永不裁剪；
+          #   产物统一命名，无 _debug/_release 后缀。不要套用其它模块的产物后缀判定。
+          ./gradlew --no-daemon :app:assembleRelease
+          ls -la app/build/outputs/apk/release
+
+      # 产物命名：<应用名>_<版本>-<code>_<时间>_<短号>.apk
+      #   例：AppErrorNotify_1.18-81_20261001-1017_2ed8da43.apk
+      #   · 应用名取 Manifest 的 android:label，再解一层 @string 引用 —— 不写死字面量，
+      #     避免「应用名」在产物命名里存在第二份来源、改一处忘一处。
+      #   · 版本取 app/build.gradle.kts 的 versionName + versionCode。
+      #   · ⚠️ 本地 build.sh 的规范名是 `AppErrorNotify_1.18(81).apk`（带圆括号）；这里改用 `-` 连接：
+      #       圆括号在 URL 里需转义，Release 页面的下载链接由资产名拼出，括进名字是隐患。
+      - name: Rename APK and assert naming rule
+        env:
+          TS: ${{ steps.info.outputs.ts }}
+          SHORT: ${{ steps.info.outputs.short }}
+        run: |
+          LABEL_REF="$(sed -nE 's/.*android:label="([^"]+)".*/\1/p' app/src/main/AndroidManifest.xml | head -1)"
+          case "$LABEL_REF" in
+            @string/*)
+              KEYNAME="${LABEL_REF#@string/}"
+              LABEL="$(sed -nE "s#.*<string name=\"${KEYNAME}\">([^<]*)</string>.*#\1#p" \
+                       app/src/main/res/values/strings.xml | head -1)"
+              ;;
+            *) LABEL="$LABEL_REF" ;;
+          esac
+          [ -n "$LABEL" ] || { echo "::error::读不到应用名（AndroidManifest 的 android:label）"; exit 1; }
+
+          PREFIX="$(printf '%s' "$LABEL" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/[[:space:]]+/./g')"
+          # 宁可在此失败，也不要产出一个「页面能看、链接打不开」的名字
+          case "$PREFIX" in
+            ""|*[!A-Za-z0-9._-]*|.*|*.)
+              echo "::error::产物名前缀为空或含非法字符：'$PREFIX'（仅允许字母/数字/._-）"; exit 1 ;;
+          esac
+
+          VER="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)"
+          CODE="$(sed -nE 's/^[[:space:]]*versionCode = ([0-9]+).*/\1/p' app/build.gradle.kts | head -1)"
+          if [ -z "$VER" ] || [ -z "$CODE" ]; then
+            echo "::error::读不到 versionName/versionCode（app/build.gradle.kts）"
+            exit 1
+          fi
+
+          echo "产物名构成: 应用名=${PREFIX} 版本=${VER} code=${CODE} 时间=${TS} 短号=${SHORT}"
+          for kv in "PREFIX=$PREFIX" "VER=$VER" "CODE=$CODE"; do echo "${kv}" >> "$GITHUB_ENV"; done
+
+          SRC="app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$SRC" ]; then
+            if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+              echo "::error::产物未签名（出现 app-release-unsigned.apk）—— signingConfig 没生效"
+            else
+              echo "::error::未找到产物：$SRC"
+            fi
+            exit 1
+          fi
+
+          NAME="${PREFIX}_${VER}-${CODE}_${TS}_${SHORT}.apk"
+          mkdir -p dist
+          cp -- "$SRC" "dist/$NAME"
+          echo "产物: dist/$NAME ← $SRC"
+
+          # 命名自检（拿**实际产出的文件名**校验，不只信规则自洽）：
+          #   发布与说明正文都按该规则拼文件名，改名漏改会静默错（下载 404 / 页面列错文件）
+          shopt -s nullglob
+          apks=(dist/*.apk)
+          [ "${#apks[@]}" -eq 1 ] || { echo "::error::应产出 1 个包，实际 ${#apks[@]} 个"; exit 1; }
+          for f in "${apks[@]}"; do
+            printf '%s' "$(basename "$f")" \
+              | grep -qE '^[A-Za-z0-9._-]+_[0-9]{8}-[0-9]{4}_[0-9a-f]{8}\.apk$' \
+              || { echo "::error::产物名与规则不符（或含空格/括号/百分号等 URL 不友好字符）: $(basename "$f")"; exit 1; }
+          done
+          echo "✅ 命名自检通过"
+          ls -la dist
+
+      # 断言产物真的可用：三件套齐全 + 作用域有效 + **真的被固定密钥签过** + 版本号未漂移 + 语言裁剪未回归。
+      #   这一串全是**静默失败模式**（包照样装、照样跑，只是模块不生效或用户拿到的版本不对），
+      #   故必须做成门禁而不是「发布前看一眼」。
+      - name: Verify APK (xposed files + signature + version + locales)
+        run: |
+          APKSIGNER="$(command -v apksigner || true)"
+          [ -n "$APKSIGNER" ] || APKSIGNER="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+          [ -n "$APKSIGNER" ] || { echo "::error::找不到 apksigner，无法断言签名 —— 拒绝发布"; exit 1; }
+          AAPT2="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)"
+          [ -n "$AAPT2" ] || { echo "::error::找不到 aapt2（用于读版本与语言列表）"; exit 1; }
+
+          # 固定密钥的证书指纹（SHA-256，大写无冒号）。**换密钥时必须同步改本行**
+          # （取法：keytool -list -v 里的 SHA256，去冒号转大写）。
+          EXPECTED_CERT_SHA256="1F3A4525BFC903048F9DC4C15C602B427D1B7F4C080341A6297892E499569F27"
+
+          APK="$(ls dist/*.apk)"
+          NAME="$(basename "$APK")"
+          echo "════ 校验 $NAME"
+
+          # ① libxposed 三件套 —— 缺任何一个，LSPosed 都不会把 APK 认成模块
+          MISSING=""
+          for e in META-INF/xposed/java_init.list META-INF/xposed/module.prop META-INF/xposed/scope.list; do
+            unzip -l "$APK" | grep -q "$e" || MISSING="$MISSING $e"
+          done
+          [ -z "$MISSING" ] || { echo "::error::$NAME 缺 libxposed 三件套:$MISSING（LSPosed 不会识别为模块）"; exit 1; }
+          echo "  ✅ META-INF/xposed 三件套齐全"
+
+          # ② 作用域静态声明有效：scope.list 非空 + module.prop 的 staticScope=true。
+          #    少任一项，作用域会退化成「需用户在 LSPosed 里手动勾选」——安装体验直接坏掉，而包本身无异常。
+          SCOPE="$(unzip -p "$APK" META-INF/xposed/scope.list | tr -d '[:space:]')"
+          [ -n "$SCOPE" ] || { echo "::error::$NAME 的 scope.list 为空（作用域失效）"; exit 1; }
+          unzip -p "$APK" META-INF/xposed/module.prop | grep -q '^staticScope=true$' \
+            || { echo "::error::$NAME 的 module.prop 缺 staticScope=true（作用域需手动勾选）"; exit 1; }
+          echo "  ✅ 作用域静态声明有效（scope=$SCOPE）"
+
+          BADGING="$("$AAPT2" dump badging "$APK" 2>/dev/null || true)"
+
+          # ③ 版本号必须与 build.gradle.kts 一致 —— 防「改了 gradle 但产物名/内容对不上」的静默漂移
+          PKG_LINE="$(printf '%s' "$BADGING" | grep -m1 "^package:")"
+          printf '%s' "$PKG_LINE" | grep -q "versionCode='${CODE}'" \
+            || { echo "::error::$NAME 的 versionCode 与源码不符（期望 ${CODE}）：$PKG_LINE"; exit 1; }
+          printf '%s' "$PKG_LINE" | grep -q "versionName='${VER}'" \
+            || { echo "::error::$NAME 的 versionName 与源码不符（期望 ${VER}）：$PKG_LINE"; exit 1; }
+          echo "  ✅ 版本号与源码一致：${VER}(${CODE})"
+
+          # ④ 语言裁剪未回归。
+          #    本项目 localeFilters 踩过两次坑（写 "zh" 匹配不到 values-zh-rCN ⇒ 中文整个消失；
+          #    写 BCP-47 "zh-CN" 会让 aapt2 直接报错），所以这里同时断言「中文在」与「无多余语言」——
+          #    依赖库（Material / AppCompat）自带 80 余种翻译，一旦 localeFilters 失效会静默全进包。
+          LOCALES="$(printf '%s' "$BADGING" | grep -m1 '^locales:')"
+          printf '%s' "$LOCALES" | grep -q "'zh-CN'" \
+            || { echo "::error::$NAME 中文资源缺失（localeFilters 失效）：$LOCALES"; exit 1; }
+          EXTRA="$(printf '%s' "$LOCALES" | tr ' ' '\n' | grep "^'" | grep -vE "^'--_--'$|^'zh-CN'$")"
+          [ -z "$EXTRA" ] \
+            || { echo "::error::$NAME 含多余语言，localeFilters 未生效：$EXTRA"; exit 1; }
+          echo "  ✅ 语言裁剪生效：$LOCALES"
+
+          # ⑤ 签名有效 + 指纹等于固定密钥
+          OUT="$("$APKSIGNER" verify --print-certs "$APK" 2>&1 || true)"
+          if printf '%s' "$OUT" | grep -qi 'DOES NOT VERIFY\|Missing.*signature\|no signature'; then
+            echo "::error::$NAME 未通过签名校验 —— 拒绝发布"
+            printf '%s\n' "$OUT"
+            exit 1
+          fi
+          # 指纹行格式随 build-tools 版本变化，两种都认：
+          #   旧：Signer #1 certificate SHA-256 digest: <hex>
+          #   37：V2 Signer: certificate SHA-256 digest: <hex>
+          # （只取第一条 SHA-256；下面还要求非空，故格式再变也只会失败在这里而不是静默放行）
+          DIGEST="$(printf '%s' "$OUT" | sed -nE 's/^.*certificate SHA-256 digest: ([0-9a-fA-F]+).*$/\1/p' | head -1)"
+          [ -n "$DIGEST" ] || { echo "::error::$NAME 读不到签名证书指纹（apksigner 未能解析产物）"; printf '%s\n' "$OUT"; exit 1; }
+          ACTUAL="$(printf '%s' "$DIGEST" | tr -d ':' | tr 'a-f' 'A-F')"
+          if [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::$NAME 签名指纹与固定密钥不符 —— 拒绝发布"
+            echo "  期望: $EXPECTED_CERT_SHA256"
+            echo "  实际: $ACTUAL"
+            echo "  排查：① 仓库 secrets 的 KEY_BASE64 是否被清空/写错 ② 若确已轮换密钥，本处期望值需同步更新"
+            exit 1
+          fi
+          echo "  ✅ 签名有效，指纹与固定密钥一致：$ACTUAL"
+
+          # ⑥ 签名方案须含 **v2**（Android 7+ 的安装/覆盖升级靠它）。
+          #    实测（build-tools 37.0.0，本地产物）：v1 与 v3 均为 false —— 虽 enableV1Signing=true，
+          #    实际只产出 v2。故此处只断言 v2，不断言 v1/v3（加了会误报）。
+          VERBOSE="$("$APKSIGNER" verify --verbose "$APK" 2>&1 || true)"
+          printf '%s' "$VERBOSE" | grep -qE 'Verified using v2 scheme.*: true' \
+            || { echo "::error::$NAME 未启用 v2 签名方案 —— 拒绝发布"; printf '%s\n' "$VERBOSE"; exit 1; }
+          echo "  ✅ 签名方案含 v2"
+
+          echo "CERT_SHA256=$ACTUAL" >> "$GITHUB_ENV"
+          echo "SIGN_SCHEMES=v2" >> "$GITHUB_ENV"
+          echo "APK_NAME=$NAME" >> "$GITHUB_ENV"
+
+      # 发布目标：**每次构建一个新 tag**（`<版本>-<code>_<时间>_<短号>`），不往固定页滚动更新。
+      #   于是每个版本各有独立页面，历史可逐页回看；页面之间靠 tag 区分。
+      - name: Resolve release target
+        id: target
+        run: |
+          TAG="${VER}-${CODE}_${{ steps.info.outputs.ts }}_${{ steps.info.outputs.short }}"
+          echo "tag=${TAG}"                                      >> "$GITHUB_OUTPUT"
+          echo "name=${VER}(${CODE}) · ${{ steps.info.outputs.ts }}" >> "$GITHUB_OUTPUT"
+          echo "→ tag=${TAG}"
+
+      - name: Generate release body
+        env:
+          TS: ${{ steps.info.outputs.ts }}
+          SHORT: ${{ steps.info.outputs.short }}
+        run: |
+          cat > release_body.md <<EOF
+          **AppErrorNotify** ${VER}(${CODE}) · 提交 [\`${SHORT}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) · 构建时间（北京时间）\`${TS}\`
+
+          本次构建产出**一个包**：\`${APK_NAME}\`
+
+          - 本项目**不分 debug / release**：调试日志由 App 内 UI 开关（\`ConfigData.isEnableDebug\`）运行时控制，
+            \`Debug.d\` 调用在正式包里也保留（否则该开关会失效）。要排障请在 App 内打开开关，**不需要换包**。
+          - 签名证书 SHA-256：\`${CERT_SHA256:-（未读取到）}\`
+          - 签名方案：\`${SIGN_SCHEMES:-（未读取到）}\`
+          - 作用域：\`${SCOPE}\`（已在 \`META-INF/xposed/scope.list\` 静态声明，LSPosed 里无需手动勾选）
+          - 构建来源：\`${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\`
+          EOF
+          cat release_body.md
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: AppErrorNotify-${{ steps.info.outputs.ts }}-${{ steps.info.outputs.short }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ steps.target.outputs.tag }}
+          name: ${{ steps.target.outputs.name }}
+          body_path: release_body.md
+          files: dist/*.apk
