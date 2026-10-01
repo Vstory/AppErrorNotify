@@ -33,6 +33,18 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
 
     private Runnable onChanged;
 
+    private boolean fetching = false;
+    private int fetchSeq = 0;
+
+    /** 无回传时的兜底等待上限。ModuleLogger.fetchFromSystemServer 只兜异常、没有超时：
+     *  模块未激活时广播无人应答、回调永不触发，不加这层转圈不会停 */
+    private static final long FETCH_TIMEOUT_MS = 1500L;
+
+    /** 转圈显示延迟：回传远快于此，立即显示会闪一下 */
+    private static final long PROGRESS_DELAY_MS = 200L;
+
+    private boolean showProgress = false;
+
     private final List<String> filters = new ArrayList<String>() {{
         add("D"); add("I"); add("W"); add("E");
     }};
@@ -102,8 +114,29 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
     }
 
     private void refreshData() {
+        final int seq = ++fetchSeq;
+        fetching = true;
+        showProgress = false;
         renderData();
-        ModuleLogger.fetchFromSystemServer(this, () -> binding.listView.post(this::renderData));
+        binding.listView.postDelayed(() -> {
+            if (seq == fetchSeq) {
+                fetching = false;
+                showProgress = false;
+                renderData();
+            }
+        }, FETCH_TIMEOUT_MS);
+        binding.listView.postDelayed(() -> {
+            if (seq == fetchSeq && fetching) {
+                showProgress = true;
+                renderData();
+            }
+        }, PROGRESS_DELAY_MS);
+        ModuleLogger.fetchFromSystemServer(this, () -> binding.listView.post(() -> {
+            if (seq != fetchSeq) return;
+            fetching = false;
+            showProgress = false;
+            renderData();
+        }));
     }
 
     private void renderData() {
@@ -115,10 +148,16 @@ public class LoggerActivity extends BaseActivity<ActivitiyLoggerBinding> {
         }
         if (onChanged != null) onChanged.run();
         binding.listView.post(() -> binding.listView.setSelection(0));
-        ViewKt.setVisible(binding.exportAllIcon, !listData.isEmpty());
-        ViewKt.setVisible(binding.listView, !listData.isEmpty());
-        ViewKt.setVisible(binding.listNoDataView, listData.isEmpty());
-        binding.listNoDataView.setText(filters.size() < 4 ? LocaleFactoryKt.getLocale().getNoListResult() : LocaleFactoryKt.getLocale().getNoListData());
+        final boolean hasData = !listData.isEmpty();
+        ViewKt.setVisible(binding.listProgressView, !hasData && fetching && showProgress);
+        ViewKt.setVisible(binding.exportAllIcon, hasData);
+        ViewKt.setVisible(binding.listView, hasData);
+        ViewKt.setVisible(binding.listNoDataView, !hasData && !fetching);
+        if (!hasData) {
+            binding.listNoDataView.setText(filters.size() < 4
+                    ? LocaleFactoryKt.getLocale().getNoListResult()
+                    : LocaleFactoryKt.getLocale().getNoListData());
+        }
     }
 
     private String formatTime(long timestamp) {

@@ -513,9 +513,10 @@ public class AppErrorsRecordData {
 
     /**
      * UI 进程查询「应用总数」（统计弹窗用）：经广播请 system_server 特权枚举后回传一个 int。
-     *  ⚠️ 不能走 UI 进程 pm.getInstalledPackages：Android 11+ 包可见性限制会被国产 ROM（ColorOS 等）
-     *     「读取应用列表」授权弹窗拦截，且该授权是会话级、重启后复发（真机实证 2026-09-05）。
-     *     system_server（uid=1000）枚举全量应用天然可见、无弹窗。
+     *  ⚠️ 不能走 UI 进程 pm.getInstalledPackages：Android 11+ 包可见性限制之上，国产 ROM（ColorOS 等）还有一层
+     *     「读取应用列表」应用级权限开关，被拒时其静默返回空列表（只剩自身），不报错也不提示；
+     *     用户授权后持久有效、重启不失效（真机实测 2026-10-01）。
+     *     system_server（uid=1000）枚举全量应用不受该权限管辖。
      *  ⚠️ 通道超时兜底：多次重试（总窗口约 14s）收不到回传 → 回调 -1，UI 用 0 保底显示（占比 0%），不阻塞弹窗。
      *     （方案A 2026-09-05：开机早期通道未就绪时静默重试，避免误报失败。）
      * @param context UI Context

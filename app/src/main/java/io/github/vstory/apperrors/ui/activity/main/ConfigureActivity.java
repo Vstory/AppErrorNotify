@@ -19,6 +19,7 @@ import io.github.vstory.apperrors.utils.factory.DialogBuilderFactoryKt;
 import io.github.vstory.apperrors.utils.factory.FunctionFactoryKt;
 import io.github.vstory.apperrors.utils.factory.ThreadPoolFactoryKt;
 import io.github.vstory.apperrors.utils.tool.FrameworkTool;
+import io.github.vstory.apperrors.wrapper.BuildConfigWrapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,8 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
 
     private AppFiltersBean appFilters = new AppFiltersBean();
 
+    private boolean listBlockedShown = false;
+
     private Runnable onChanged;
 
     private final List<AppInfoBean> listData = new ArrayList<>();
@@ -36,6 +39,8 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
     protected void onCreate() {
         AppErrorsConfigData.refresh();
         binding.titleBackIcon.setOnClickListener(v -> finish());
+        binding.listPermissionButton.setOnClickListener(v ->
+                FunctionFactoryKt.openSelfSetting(this, BuildConfigWrapper.APPLICATION_ID));
         binding.globalIcon.setOnClickListener(v -> {
             showAppConfigDialog(LocaleFactoryKt.getLocale().getGlobalConfig(), "", false, false, type -> {
                 AppErrorsConfigData.putAppShowingType(type, "");
@@ -159,6 +164,13 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
         });
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 仅当上次是「权限被拒」时空列表时才重刷：用户去开启权限后回来，列表应自动出现
+        if (listBlockedShown) refreshData();
+    }
+
     private void refreshData() {
         ViewKt.setVisible(binding.listProgressView, true);
         ViewKt.setVisible(binding.globalIcon, false);
@@ -166,14 +178,18 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
         ViewKt.setVisible(binding.filterIcon, false);
         ViewKt.setVisible(binding.listView, false);
         ViewKt.setVisible(binding.listNoDataView, false);
+        ViewKt.setVisible(binding.listPermissionView, false);
         binding.titleCountText.setText(LocaleFactoryKt.getLocale().getLoading());
         FrameworkTool.fetchAppListData(this, appFilters, result -> {
+            final boolean listBlocked = result == null;
             List<AppInfoBean> tempsData = new ArrayList<>();
             ThreadPoolFactoryKt.newThread(() -> {
                 try {
-                    for (AppInfoBean bean : result) {
-                        tempsData.add(bean);
-                        bean.icon = FunctionFactoryKt.appIconOf(this, bean.packageName);
+                    if (result != null) {
+                        for (AppInfoBean bean : result) {
+                            tempsData.add(bean);
+                            bean.icon = FunctionFactoryKt.appIconOf(this, bean.packageName);
+                        }
                     }
                 } catch (Exception ignored) {
                 }
@@ -186,10 +202,18 @@ public class ConfigureActivity extends BaseActivity<ActivityConfigBinding> {
                         ViewKt.setVisible(binding.listProgressView, false);
                         ViewKt.setVisible(binding.globalIcon, true);
                         ViewKt.setVisible(binding.batchIcon, !listData.isEmpty());
-                        ViewKt.setVisible(binding.filterIcon, true);
+                        ViewKt.setVisible(binding.filterIcon, !listBlocked);
                         ViewKt.setVisible(binding.listView, !listData.isEmpty());
-                        ViewKt.setVisible(binding.listNoDataView, listData.isEmpty());
-                        binding.titleCountText.setText(LocaleFactoryKt.getLocale().resultCount(listData.size()));
+                        final boolean listEmpty = listData.isEmpty();
+                        ViewKt.setVisible(binding.listPermissionView, listEmpty && listBlocked);
+                        ViewKt.setVisible(binding.listNoDataView, listEmpty && !listBlocked);
+                        listBlockedShown = listBlocked;
+                        if (listBlocked) {
+                            binding.titleCountText.setText("");
+                        } else {
+                            binding.listNoDataView.setText(LocaleFactoryKt.getLocale().getNoListResult());
+                            binding.titleCountText.setText(LocaleFactoryKt.getLocale().resultCount(listData.size()));
+                        }
                     });
                 }
             });

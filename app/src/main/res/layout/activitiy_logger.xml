@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -101,6 +102,17 @@
         android:layout_height="match_parent"
         android:layout_marginTop="10dp">
 
+        <!-- 数据需跨进程从 system_server 取，取数期间显示转圈；
+             空状态文字初值 gone，避免「没有记录」的结论在数据到达前先抛给用户 -->
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/list_progress_view"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_gravity="center"
+            android:indeterminate="true"
+            app:indicatorColor="@color/colorAccentControl"
+            app:trackCornerRadius="10dp" />
+
         <TextView
             android:id="@+id/list_no_data_view"
             android:layout_width="wrap_content"
@@ -110,7 +122,8 @@
             android:lineSpacingExtra="6dp"
             android:text="@string/no_list_data"
             android:textColor="@color/colorTextDark"
-            android:textSize="17sp" />
+            android:textSize="17sp"
+            android:visibility="gone" />
 
         <ListView
             android:id="@+id/list_view"

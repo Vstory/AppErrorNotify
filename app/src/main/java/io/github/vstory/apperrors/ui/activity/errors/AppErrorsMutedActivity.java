@@ -19,6 +19,18 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
 
     private Runnable onChanged;
 
+    private boolean fetching = false;
+    private int fetchSeq = 0;
+
+    /** 无回传时的兜底等待上限。MutedErrorsData.fetchFromSystemServer 只兜异常、没有超时：
+     *  模块未激活时广播无人应答、回调永不触发，不加这层转圈不会停 */
+    private static final long FETCH_TIMEOUT_MS = 1500L;
+
+    /** 转圈显示延迟：回传远快于此，立即显示会闪一下 */
+    private static final long PROGRESS_DELAY_MS = 200L;
+
+    private boolean showProgress = false;
+
     private final List<MutedErrorsAppBean> listData = new ArrayList<>();
 
     @Override
@@ -55,17 +67,41 @@ public class AppErrorsMutedActivity extends BaseActivity<ActivityAppErrorsMutedB
     }
 
     private void refreshData() {
-        MutedErrorsData.fetchFromSystemServer(this, () -> {
-            runOnUiThread(() -> {
-                List<MutedErrorsAppBean> all = MutedErrorsData.fetchMutedErrorsAppsData();
-                listData.clear();
-                listData.addAll(all);
-                if (onChanged != null) onChanged.run();
-                ViewKt.setVisible(binding.unmuteAllIcon, !listData.isEmpty());
-                ViewKt.setVisible(binding.listView, !listData.isEmpty());
-                ViewKt.setVisible(binding.listNoDataView, listData.isEmpty());
-            });
-        });
+        final int seq = ++fetchSeq;
+        fetching = true;
+        showProgress = false;
+        renderData();
+        binding.listView.postDelayed(() -> {
+            if (seq == fetchSeq) {
+                fetching = false;
+                showProgress = false;
+                renderData();
+            }
+        }, FETCH_TIMEOUT_MS);
+        binding.listView.postDelayed(() -> {
+            if (seq == fetchSeq && fetching) {
+                showProgress = true;
+                renderData();
+            }
+        }, PROGRESS_DELAY_MS);
+        MutedErrorsData.fetchFromSystemServer(this, () -> runOnUiThread(() -> {
+            if (seq != fetchSeq) return;
+            fetching = false;
+            showProgress = false;
+            List<MutedErrorsAppBean> all = MutedErrorsData.fetchMutedErrorsAppsData();
+            listData.clear();
+            listData.addAll(all);
+            renderData();
+        }));
+    }
+
+    private void renderData() {
+        if (onChanged != null) onChanged.run();
+        final boolean hasData = !listData.isEmpty();
+        ViewKt.setVisible(binding.listProgressView, !hasData && fetching && showProgress);
+        ViewKt.setVisible(binding.unmuteAllIcon, hasData);
+        ViewKt.setVisible(binding.listView, hasData);
+        ViewKt.setVisible(binding.listNoDataView, !hasData && !fetching);
     }
 
     @Override

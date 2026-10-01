@@ -5,6 +5,11 @@
     <color name="colorTextGray">#FFD3D3D3</color>
     <color name="colorStackBackground">#FF383838</color>
     <color name="colorStackError">#FFFF5252</color>
+    <color name="colorLinkBlue">#FF64B5F6</color>
+    <!-- 功能性强调灰（夜间）：原 #656565 压在 #2D2D2D 上仅 2.36:1 几乎不可见，
+         夜间提亮到 #8A8A8A → 对背景 3.99:1；按钮文字同时反转为深色 4.99:1 -->
+    <color name="colorAccentControl">#FF8A8A8A</color>
+    <color name="colorOnAccentControl">#FF1B1B1B</color>
     <color name="statusActive">#FF1E5B44</color>
     <color name="statusActiveText">#FFB3E8D3</color>
     <color name="statusPartial">#FF5C3D00</color>

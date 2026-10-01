@@ -120,6 +120,7 @@
             android:layout_height="50dp"
             android:layout_gravity="center"
             android:indeterminate="true"
+            app:indicatorColor="@color/colorAccentControl"
             app:trackCornerRadius="10dp" />
 
         <TextView

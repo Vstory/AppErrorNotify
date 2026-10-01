@@ -250,9 +250,15 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
         for (Object o : displayItems) visibleCount += (o instanceof CrashGroupItem)
                 ? ((CrashGroupItem) o).members.size() : 1;
         binding.titleCountText.setText(LocaleFactoryKt.getLocale().recordCount(visibleCount));
-        ViewKt.setVisible(binding.listView, !displayItems.isEmpty());
-        ViewKt.setVisible(binding.listNoDataView, displayItems.isEmpty());
-        boolean filtering = !filterPackage.isEmpty();
+        final boolean listEmpty = displayItems.isEmpty();
+        final boolean filtering = !filterPackage.isEmpty();
+        ViewKt.setVisible(binding.listView, !listEmpty);
+        ViewKt.setVisible(binding.listNoDataView, listEmpty);
+        if (listEmpty) {
+            binding.listNoDataView.setText(filtering
+                    ? LocaleFactoryKt.getLocale().getNoListResult()
+                    : LocaleFactoryKt.getLocale().getNoListData());
+        }
         ViewKt.setVisible(binding.filterBarView, filtering);
         if (filtering) {
             String appName = FunctionFactoryKt.appNameOf(this, filterPackage);

@@ -755,7 +755,6 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:alpha="0.8"
                         android:gravity="center"
                         android:text="@string/about_github_url"
                         android:textColor="@color/colorLinkBlue"

@@ -95,6 +95,9 @@
     <string name="apps_config_template">Apps Config Template</string>
     <string name="filter_by_condition">Filter by Condition</string>
     <string name="no_list_result">No result to display</string>
+    <string name="no_list_permission_title">Can\'t read the app list</string>
+    <string name="no_list_permission_desc">Permission to read the app list is required to show the apps on this device.</string>
+    <string name="no_list_permission_action">Grant permission</string>
     <string name="typo_app_name_pkg_name">Typo apps name or package name</string>
     <string name="clear_filters">Clear Filters</string>
     <string name="result_count">%1$s results found</string>

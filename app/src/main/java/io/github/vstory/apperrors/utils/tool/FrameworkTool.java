@@ -91,7 +91,12 @@ public class FrameworkTool {
                 list.add(bean);
             }
         } else {
+            // 此处为空只可能是枚举本身没拿到数据：ColorOS 等 ROM 的「读取应用列表」权限被拒时
+            // getInstalledPackages 静默返回空列表（只剩自身），真机实测 2026-10-01。
+            // 回传 null 与「枚举正常但筛选无结果」（空 list）区分，供 UI 给权限指引。
             ModuleLogger.log("E", "AppErrorNotify", "Fetched installed packages but got empty list", null);
+            result.accept(null);
+            return;
         }
         result.accept(list);
     }

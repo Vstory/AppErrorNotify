@@ -116,8 +116,10 @@
             android:layout_height="50dp"
             android:layout_gravity="center"
             android:indeterminate="true"
+            app:indicatorColor="@color/colorAccentControl"
             app:trackCornerRadius="10dp" />
 
+        <!-- 普通「筛选无结果」：单行文字提示（无操作可做，故不给按钮） -->
         <TextView
             android:id="@+id/list_no_data_view"
             android:layout_width="wrap_content"
@@ -129,6 +131,69 @@
             android:textColor="@color/colorTextDark"
             android:textSize="17sp"
             android:visibility="gone" />
+
+        <!-- 「读取应用列表」权限被拒：引导式空状态（图标 → 标题 → 说明 → 主操作按钮）
+             外层套 ScrollView + fillViewport：内容正常时垂直居中；
+             横屏 / 系统大字体下内容超出容器时可滚动，不会被 FrameLayout 裁掉上下两端 -->
+        <ScrollView
+            android:id="@+id/list_permission_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingLeft="40dp"
+                android:paddingRight="40dp">
+
+                <androidx.constraintlayout.utils.widget.ImageFilterView
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_warn"
+                    android:tint="@color/colorTextDark" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:text="@string/no_list_permission_title"
+                    android:textColor="@color/colorTextGray"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:lineSpacingExtra="4dp"
+                    android:text="@string/no_list_permission_desc"
+                    android:textColor="@color/colorTextDark"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/list_permission_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:insetBottom="0dp"
+                    android:insetTop="0dp"
+                    android:minHeight="48dp"
+                    android:text="@string/no_list_permission_action"
+                    android:textAllCaps="false"
+                    android:textColor="@color/colorOnAccentControl"
+                    android:textSize="14sp"
+                    app:backgroundTint="@color/colorAccentControl"
+                    app:cornerRadius="15dp" />
+            </LinearLayout>
+        </ScrollView>
 
         <ListView
             android:id="@+id/list_view"

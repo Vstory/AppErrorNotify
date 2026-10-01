@@ -2,6 +2,12 @@
 <resources>
     <color name="colorPrimaryAccent">#656565</color>
     <color name="colorLinkBlue">#1976D2</color>
+    <!-- 功能性强调灰：权限引导按钮底色 + 列表加载转圈。
+         与 colorPrimaryAccent 同值，但独立成键 —— 直接引用颜色资源，不经主题，
+         避免改主题 colorPrimary 时牵连 CheckBox/RadioButton/TextInputLayout 等 M3 组件。 -->
+    <color name="colorAccentControl">#FF656565</color>
+    <!-- 上述底色上的前景文字色（亮色下浅底深字反了，故单独给白字） -->
+    <color name="colorOnAccentControl">#FFFFFFFF</color>
     <color name="colorFunctionIcon">#1E7A5C</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>

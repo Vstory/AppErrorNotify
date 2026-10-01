@@ -95,6 +95,9 @@
     <string name="apps_config_template">应用配置模板</string>
     <string name="filter_by_condition">按条件过滤</string>
     <string name="no_list_result">没有结果可以显示</string>
+    <string name="no_list_permission_title">无法读取应用列表</string>
+    <string name="no_list_permission_desc">需要「读取应用列表」权限，才能显示本机应用列表。</string>
+    <string name="no_list_permission_action">去开启权限</string>
     <string name="typo_app_name_pkg_name">可输入 APP 名称、包名</string>
     <string name="clear_filters">清除条件</string>
     <string name="result_count">共 %1$s 个结果</string>
