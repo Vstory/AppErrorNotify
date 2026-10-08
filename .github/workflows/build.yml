@@ -253,7 +253,7 @@ jobs:
       # 签名：从仓库 secrets 解码**固定密钥**（公用钥，见 tokens/Signing/）到 `ci-signing.jks`。
       #   ⚠️ 4 个 secret 是配套的一组，改名要四处同改：本处、
       #      tokens/Signing/scripts/sync-signing-secrets.py 的 SECRET_FROM_KEY、
-      #      tokens/Signing/README.md、知识库 凭证运维/README.md。
+      #      tokens/Signing/README.md、知识库 200_Knowledge/credentials-ops/README.md。
       #   ⚠️ secret 一律经 env 传入、run 里只引用变量名 —— 不把 ${{ secrets.X }} 写进 run 正文：
       #      值里若含 `$` 或反引号会被 shell 二次展开（实测口令含 $ 时被吃成前半截，且在签名报错前毫无提示）。
       #   ⚠️ 缺 secret 时**直接失败**，不回退到未签名/调试签名 —— 回退的后果是产物看着"构建成功"、
