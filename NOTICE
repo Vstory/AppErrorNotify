@@ -1,0 +1,18 @@
+AppErrorNotify
+==============
+
+Modified version of AppErrorsTracking <https://github.com/KitsunePie/AppErrorsTracking>.
+This is an unofficial fork; the upstream author does not maintain or endorse it.
+
+Copyright (C) 2017 Fankes Studio (qzmmcn@163.com)
+Copyright (C) 2026 Vstory (Java rework)
+
+Modifications carried out since 2026:
+
+- Rewritten in pure Java against libxposed API 102 (upstream is Kotlin + YukiHookAPI).
+- Application id changed to io.github.vstory.apperrors and display name to AppErrorNotify.
+- Crash display switched from the system error dialog to a system notification, with
+  per-app display modes, mute rules and a crash-storm breaker added.
+- Upstream AppCenter analytics upload removed.
+
+Licensed under the GNU Affero General Public License v3.0; see LICENSE for the full text.

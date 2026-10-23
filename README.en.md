@@ -84,4 +84,4 @@ If the same app crashes repeatedly within a short window (crash storm), the modu
 
 ## License
 
-**GNU AGPL-3.0** (upstream Copyright (C) 2017 Fankes Studio; 2026 Vstory Java rework). See [LICENSE](LICENSE).
+**GNU AGPL-3.0** (upstream Copyright (C) 2017 Fankes Studio; 2026 Vstory Java rework). See [LICENSE](LICENSE); modification notice and attribution are in [NOTICE](NOTICE).
