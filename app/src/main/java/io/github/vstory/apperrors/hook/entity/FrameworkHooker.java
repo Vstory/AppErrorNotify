@@ -350,7 +350,7 @@ public class FrameworkHooker {
         try {
             AppErrorsRecordData.init(context);
         } catch (Throwable t) {
-            logError("异常记录数据初始化失败\n  " + t, t);
+            logError("error records init failed\n  " + t, t);
         }
         registerLifecycle(context);
         registerErrorChannel(context);
@@ -358,6 +358,13 @@ public class FrameworkHooker {
 
     static final String ACTION_GET_ERRORS = "io.github.vstory.apperrors.action.GET_ERRORS";
     static final String ACTION_ERRORS_RESULT = "io.github.vstory.apperrors.action.ERRORS_RESULT";
+    static final String ACTION_GET_ERROR_DETAIL = "io.github.vstory.apperrors.action.GET_ERROR_DETAIL";
+    static final String ACTION_ERROR_DETAIL_RESULT = "io.github.vstory.apperrors.action.ERROR_DETAIL_RESULT";
+    static final String ACTION_GET_ERRORS_PAGE = "io.github.vstory.apperrors.action.GET_ERRORS_PAGE";
+    static final String ACTION_ERRORS_PAGE_RESULT = "io.github.vstory.apperrors.action.ERRORS_PAGE_RESULT";
+    static final String EXTRA_RECORD_KEY = "record_key";
+    static final String EXTRA_OFFSET = "offset";
+    static final String EXTRA_LIMIT = "limit";
     static final String ACTION_CLEAR_ERRORS = "io.github.vstory.apperrors.action.CLEAR_ERRORS";
     static final String ACTION_REMOVE_ERROR = "io.github.vstory.apperrors.action.REMOVE_ERROR";
     static final String EXTRA_ERRORS = "errors";
@@ -377,16 +384,113 @@ public class FrameworkHooker {
     static final String EXTRA_PACKAGE = MutedErrorsData.EXTRA_PACKAGE;
 
     private static volatile boolean errorChannelRegistered = false;
-
-    public static void restoreBroadcastChannelRegistered() {
-        errorChannelRegistered = true;
-    }
+    private static volatile BroadcastReceiver errorChannelReceiver;
+    private static volatile BroadcastReceiver lifecycleReceiver;
 
     public static boolean isBroadcastChannelRegistered() {
         return errorChannelRegistered;
     }
 
+    /**
+     * 热重载前注销注册到 system_server 的 external callbacks。
+     * API 102 要求 onHotReloading 返回 true 之前完成注销：不注销则旧 filter 与旧 onReceive
+     * 永久驻留，改 ERROR_CHANNEL_ACTIONS 后热重载不生效，只能重启进程恢复。
+     */
+    public static void unregisterExternalCallbacks() {
+        Context ctx = getSystemServerContext();
+        // 先摘引用再注销，避免异常路径下把引用留在字段里导致后续重复注销失败
+        BroadcastReceiver errorReceiver = errorChannelReceiver;
+        errorChannelReceiver = null;
+        BroadcastReceiver lifeReceiver = lifecycleReceiver;
+        lifecycleReceiver = null;
+        if (ctx != null) {
+            if (errorReceiver != null) {
+                try {
+                    ctx.unregisterReceiver(errorReceiver);
+                } catch (Throwable t) {
+                    logDebug("error records channel: unregister skipped: " + t);
+                }
+            }
+            if (lifeReceiver != null) {
+                try {
+                    ctx.unregisterReceiver(lifeReceiver);
+                } catch (Throwable t) {
+                    logDebug("unregister lifecycle skipped: " + t);
+                }
+            }
+        }
+        errorChannelRegistered = false;
+        errorChannelRetry = 0;
+        logDebug("external callbacks unregistered for hot reload");
+    }
+
+    /**
+     * 注册模块到 system_server 的 external callbacks。
+     * 冷启动走 ensureHostContext，热重载后 static 已复位且框架不重放 onSystemServerStarting，
+     * 必须在新代码里重新调用一次，否则新 filter 永远不会装上。
+     */
+    public static void registerExternalCallbacks(Context context) {
+        registerErrorChannel(context);
+        registerLifecycle(context);
+    }
+
     private static final int ERROR_CHANNEL_RETRY_MAX = 20;
+
+    /**
+     * 通道 action 清单，filter 注册与 onReceive 分支的唯一来源。
+     * 2026-11-20 详情与分页两条通道漏在了 filter 之外，请求被 IntentFilter 静默丢弃：
+     * onReceive 一次都没进，UI 只能干等超时，表现为详情白屏、堆栈永远为空。
+     */
+    private static final String[] ERROR_CHANNEL_ACTIONS = {
+            ACTION_GET_ERRORS,
+            ACTION_GET_ERRORS_PAGE,
+            ACTION_GET_ERROR_DETAIL,
+            ACTION_CLEAR_ERRORS,
+            ACTION_REMOVE_ERROR,
+            ACTION_GET_APP_TOTAL,
+            ACTION_GET_LOGS,
+            ACTION_GET_MUTED,
+            ACTION_MUTE_ERROR,
+            ACTION_UNMUTE_ERROR,
+            ACTION_UNMUTE_ALL,
+            ACTION_RESUME_SUPPRESS,
+            AppErrorsConfigData.ACTION_CONFIG_CHANGED,
+    };
+
+    /**
+     * 回传记录：摘要模式正常远小于事务上限；万一仍超限，对数切半重发，而不是让 system_server 抛
+     * TransactionTooLargeException。切到 1 条仍失败即放弃（UI 侧有自己的超时兜底）。
+     */
+    private static void sendRecordsResult(Context ctx,
+                                          java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> payload) {
+        java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> data = payload;
+        while (true) {
+            try {
+                Intent result = new Intent(ACTION_ERRORS_RESULT);
+                result.setPackage(BuildConfigWrapper.APPLICATION_ID);
+                result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(data));
+                ctx.sendBroadcast(result);
+                return;
+            } catch (Throwable t) {
+                if (!isTransactionTooLarge(t) || data.size() <= 1) {
+                    logDebug("error records channel: send records failed \"--count " + data.size() + "\" --" + t);
+                    return;
+                }
+                data = new java.util.ArrayList<>(data.subList(0, data.size() / 2));
+                logDebug("error records channel: payload too large, retry with " + data.size() + " records");
+            }
+        }
+    }
+
+    /** Binder 事务超限会被 BinderProxy 包成 RuntimeException，必须沿 cause 链找 */
+    private static boolean isTransactionTooLarge(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof android.os.TransactionTooLargeException) return true;
+            String m = c.getMessage();
+            if (m != null && m.contains("TransactionTooLarge")) return true;
+        }
+        return false;
+    }
 
     public static void registerErrorChannel(Context context) {
         if (errorChannelRegistered) return;
@@ -400,21 +504,45 @@ public class FrameworkHooker {
                     try {
                         if (ACTION_GET_ERRORS.equals(action)) {
                             // 热重载会分裂内存态，故每次从磁盘重读，否则 UI 会拉到空列表
-                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> latest =
-                                    AppErrorsRecordData.latestFromFiles();
-                            Intent result = new Intent(ACTION_ERRORS_RESULT);
+                            // 只回摘要：完整 bean 的堆栈逐条可达几十 KB，200 条累加必撑爆 Binder 事务
+                            // （system_server 里抛 TransactionTooLargeException 代价极大），完整记录走详情/分页
+                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> payload =
+                                    AppErrorsRecordData.summaryListFromFiles();
+                            sendRecordsResult(ctx, payload);
+                            logDebug("error records channel: sent " + payload.size() + " summaries to UI");
+                        } else if (ACTION_GET_ERRORS_PAGE.equals(action)) {
+                            int offset = Math.max(intent.getIntExtra(EXTRA_OFFSET, 0), 0);
+                            // 钳一页上限：UI 传 0 或巨值都会把整批记录塞进一次事务
+                            int limit = Math.min(Math.max(intent.getIntExtra(EXTRA_LIMIT, 0), 1), 50);
+                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> page =
+                                    AppErrorsRecordData.fullPageFromFiles(offset, limit);
+                            Intent result = new Intent(ACTION_ERRORS_PAGE_RESULT);
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
-                            result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(latest));
+                            result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(page));
                             ctx.sendBroadcast(result);
-                            logDebug("Error channel: sent " + latest.size() + " records to UI");
+                            logDebug("error records channel: sent " + page.size() + " full records to UI --offset " + offset);
+                        } else if (ACTION_GET_ERROR_DETAIL.equals(action)) {
+                            String key = intent.getStringExtra(EXTRA_RECORD_KEY);
+                            io.github.vstory.apperrors.bean.AppErrorsInfoBean bean = AppErrorsRecordData.findByKey(key);
+                            Intent result = new Intent(ACTION_ERROR_DETAIL_RESULT);
+                            result.setPackage(BuildConfigWrapper.APPLICATION_ID);
+                            if (bean != null) result.putExtra(EXTRA_BEAN, bean);
+                            ctx.sendBroadcast(result);
+                            logDebug("error records channel: sent record detail \""
+                                    + key + "\" --found " + (bean != null));
                         } else if (ACTION_CLEAR_ERRORS.equals(action)) {
                             AppErrorsRecordData.clearAll();
-                            logDebug("Error channel: cleared all records from UI");
+                            logDebug("error records channel: cleared all records from UI");
                         } else if (ACTION_REMOVE_ERROR.equals(action)) {
-                            Object bean = FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_BEAN);
-                            if (bean instanceof io.github.vstory.apperrors.bean.AppErrorsInfoBean)
-                                AppErrorsRecordData.remove((io.github.vstory.apperrors.bean.AppErrorsInfoBean) bean);
-                            logDebug("Error channel: removed one record from UI");
+                            String key = intent.getStringExtra(EXTRA_RECORD_KEY);
+                            if (key != null && !key.isEmpty()) {
+                                AppErrorsRecordData.removeByKey(key);
+                            } else {
+                                Object bean = FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_BEAN);
+                                if (bean instanceof io.github.vstory.apperrors.bean.AppErrorsInfoBean)
+                                    AppErrorsRecordData.remove((io.github.vstory.apperrors.bean.AppErrorsInfoBean) bean);
+                            }
+                            logDebug("error records channel: removed one record from UI");
                         } else if (ACTION_GET_APP_TOTAL.equals(action)) {
                             int total = 0;
                             try {
@@ -474,30 +602,24 @@ public class FrameworkHooker {
                                     return r != null ? r : null;
                                 });
                             }
-                            logDebug("Config channel: refreshed app config template from UI");
+                            logDebug("config sync channel: refreshed config template");
+                        } else {
+                            // filter 已按 ERROR_CHANNEL_ACTIONS 注册，走到这里说明某条分支没进清单
+                            logError("error records channel: unhandled action " + action);
                         }
                     } catch (Throwable t) {
-                        logError("错误通道处理失败\n  " + t);
+                        logError("error records channel: handle failed\n  " + t);
                     }
                 }
             };
             IntentFilter filter = new IntentFilter();
-            filter.addAction(ACTION_GET_ERRORS);
-            filter.addAction(ACTION_CLEAR_ERRORS);
-            filter.addAction(ACTION_REMOVE_ERROR);
-            filter.addAction(ACTION_GET_APP_TOTAL);
-            filter.addAction(ACTION_GET_LOGS);
-            filter.addAction(ACTION_GET_MUTED);
-            filter.addAction(ACTION_MUTE_ERROR);
-            filter.addAction(ACTION_UNMUTE_ERROR);
-            filter.addAction(ACTION_UNMUTE_ALL);
-            filter.addAction(ACTION_RESUME_SUPPRESS);
-            filter.addAction(AppErrorsConfigData.ACTION_CONFIG_CHANGED);
+            for (String channelAction : ERROR_CHANNEL_ACTIONS) filter.addAction(channelAction);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             else
                 context.registerReceiver(receiver, filter);
-            logDebug("Error channel registered");
+            errorChannelReceiver = receiver;
+            logDebug("error records channel: receiver registered");
             errorChannelRetry = 0;
         } catch (Throwable t) {
             errorChannelRegistered = false;
@@ -505,10 +627,10 @@ public class FrameworkHooker {
             boolean amsNotReady = t instanceof NullPointerException
                     && String.valueOf(t.getMessage()).contains("registerReceiverWithFeature");
             if (amsNotReady) {
-                logInfo("错误通道注册推迟：系统服务未就绪（AMS 未 publish，启动早期正常），3s 后自动重试 ("
+                logInfo("error records channel: register deferred (AMS not ready at boot), retry in 3s ("
                         + (errorChannelRetry + 1) + "/" + ERROR_CHANNEL_RETRY_MAX + ")");
             } else {
-                logError("错误通道注册失败\n  " + t);
+                logError("error records channel: register failed\n  " + t);
             }
             if (context != null && errorChannelRetry < ERROR_CHANNEL_RETRY_MAX) {
                 errorChannelRetry++;
@@ -521,6 +643,7 @@ public class FrameworkHooker {
     private static int errorChannelRetry = 0;
 
     private static void registerLifecycle(Context context) {
+        if (lifecycleReceiver != null) return;
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context ctx, Intent intent) {
@@ -547,6 +670,7 @@ public class FrameworkHooker {
             context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
         else
             context.registerReceiver(receiver, filter);
+        lifecycleReceiver = receiver;
     }
 
     private static class AppErrorsProcessData {
@@ -661,7 +785,7 @@ public class FrameworkHooker {
                 return null;
             }
             if (!(Boolean) hasVisible) {
-                logDebug("⑥ capture: no visible activity -> 后台");
+                logDebug("⑥ capture: no visible activity -> background");
                 return "";
             }
             Object acts = getField(wpc, "mActivities");
@@ -685,9 +809,9 @@ public class FrameworkHooker {
                         return name;
                     }
                 }
-                logDebug("⑥ capture: visible flag set but no ActivityRecord name resolved -> 后台");
+                logDebug("⑥ capture: visible flag set but no ActivityRecord name resolved -> background");
             } else {
-                logDebug("⑥ capture: mActivities not a List -> 后台");
+                logDebug("⑥ capture: mActivities not a List -> background");
             }
             return "";
         } catch (Throwable t) {
@@ -778,7 +902,7 @@ public class FrameworkHooker {
             logInfo("Burst suppress: force-stopped \"" + pkg + "\" via " + m.getName()
                     + " (userId=" + userId + ") to stop the crash storm");
         } catch (Throwable t) {
-            logError("force-stop 崩溃源失败\n  " + t);
+            logError("force-stop of crash source failed\n  " + t);
         }
     }
 
@@ -821,7 +945,7 @@ public class FrameworkHooker {
                     .setDefaults(0);
             manager.notify(pkg, SUPPRESS_NOTICE_ID, builder.build());
         } catch (Throwable t) {
-            logError("发送抑制说明通知失败\n  " + t);
+            logError("failed to post suppression notice\n  " + t);
         }
     }
 
@@ -875,7 +999,7 @@ public class FrameworkHooker {
 
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
             FunctionFactoryKt.toast(context, "AppErrorNotify has crashed, please see the log in console");
-            logError("AppErrorNotify 自身崩溃\n  详见控制台 Android Runtime Exception");
+            logError("AppErrorNotify crashed itself\n  see Android Runtime Exception on console");
         } else if (!ConfigData.isEnableAppConfigTemplate()) {
             sendCrashNotification(context, d, appName, errorTitle);
         } else {
@@ -973,7 +1097,7 @@ public class FrameworkHooker {
                 postSuppressNotice(context, d.packageName(), appName);
             }
         } catch (Throwable t) {
-            logError("发送崩溃通知失败\n  " + t);
+            logError("failed to post crash notification\n  " + t);
         }
     }
 
@@ -1010,7 +1134,7 @@ public class FrameworkHooker {
         String pkg = d.packageName();
         String crashKind = d.isRepeatingCrash() ? "keeps stopping" : "has stopped";
         StringBuilder sb = new StringBuilder();
-        sb.append("崩溃报告: \"").append(pkg).append("\" ").append(crashKind);
+        sb.append("Crash report: \"").append(pkg).append("\" ").append(crashKind);
         sb.append("\n  pid:      ").append(d.pid());
         if (!pkg.equals(d.processName())) {
             sb.append("\n  process:  \"").append(d.processName()).append("\"");
@@ -1048,35 +1172,35 @@ public class FrameworkHooker {
         try {
             onHook();
         } catch (Throwable t) {
-            logError("hook 注册整体异常，部分 hook 可能未注册\n  " + t, t);
+            logError("hook registration aborted, some hooks may be missing\n  " + t, t);
             printHookSummary();
         }
     }
 
     private static void hookExecutable(Executable e, String desc, Hooker hooker) {
         if (e == null) {
-            hookSummary.add("  [SKIP] " + desc + "（方法/构造器未找到，Android 版本差异，可忽略）");
+            hookSummary.add("  [SKIP] " + desc + "  -- not found on this Android version, ignorable");
             hookSkipCount++;
             return;
         }
         try {
             HookHandle h = module.hook(e).intercept(hooker);
             hookHandles.add(h);
-            hookSummary.add("  [OK]   " + desc);
             hookOkCount++;
         } catch (Throwable t) {
-            hookSummary.add("  [FAIL] " + desc + "  →  " + t);
+            hookSummary.add("  [FAIL] " + desc + "  ->  " + t);
             hookFailCount++;
         }
     }
 
     private static void printHookSummary() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Hook 注册完成：成功 ").append(hookOkCount)
-          .append(" / 跳过 ").append(hookSkipCount)
-          .append(" / 失败 ").append(hookFailCount).append(" 条");
-        if (hookFailCount > 0) {
-            sb.append("：\n");
+        sb.append("hook installed: ").append(hookOkCount)
+          .append(" ok / ").append(hookSkipCount)
+          .append(" skipped / ").append(hookFailCount).append(" failed");
+        // 明细只留跳过/失败：成功项已由计数表达，逐条打印纯属噪音
+        if (hookFailCount > 0 || hookSkipCount > 0) {
+            sb.append(":\n");
             for (String line : hookSummary) sb.append(line).append("\n");
         }
         logInfo(sb.toString().trim());
@@ -1089,7 +1213,7 @@ public class FrameworkHooker {
             Method hasCrashDialogs = methodOfParamCount(controllerClazz, "hasCrashDialogs", 0);
             hookExecutable(hasCrashDialogs, "ErrorDialogController#hasCrashDialogs() -> true", chain -> true);
             Constructor<?> ctor = constructorOfParamCount(controllerClazz, 1);
-            hookExecutable(ctor, "ErrorDialogController.<init>(1) -> 清空 mCrashDialogs", chain -> {
+            hookExecutable(ctor, "ErrorDialogController.<init>(1) -> clear mCrashDialogs", chain -> {
                 Object result = chain.proceed();
                 Object obj = chain.getThisObject();
                 if (obj != null) setField(obj, "mCrashDialogs", Collections.emptyList());
@@ -1124,7 +1248,7 @@ public class FrameworkHooker {
         });
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
             Method m = methodOfParamCount(AppErrorsClass(), "handleAppCrashLSPB", 6);
-            hookExecutable(m, "AppErrors#handleAppCrashLSPB(6) -> 自定义崩溃 UI", chain -> {
+            hookExecutable(m, "AppErrors#handleAppCrashLSPB(6) -> custom crash UI", chain -> {
                     Object result = chain.proceed();
                     Object arg1 = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
                     if (arg1 instanceof String && "user-terminated".equals(arg1)) return result;
@@ -1145,7 +1269,7 @@ public class FrameworkHooker {
                 });
         } else {
             Method m = methodOf(AppErrorsClass(), "handleShowAppErrorUi", Message.class);
-            hookExecutable(m, "AppErrors#handleShowAppErrorUi(Message) -> 自定义崩溃 UI (API<=R)", chain -> {
+            hookExecutable(m, "AppErrors#handleShowAppErrorUi(Message) -> custom crash UI (API<=R)", chain -> {
                     Object result = chain.proceed();
                     Object thisObj = chain.getThisObject();
                     Context context = thisObj != null ? (Context) getField(thisObj, "mContext") : null;
@@ -1161,7 +1285,7 @@ public class FrameworkHooker {
                 });
         }
         Method handleAppCrashInActivityController = methodOfParamCount(AppErrorsClass(), "handleAppCrashInActivityController", 8);
-        hookExecutable(handleAppCrashInActivityController, "AppErrors#handleAppCrashInActivityController(8) -> 记录崩溃数据", chain -> {
+        hookExecutable(handleAppCrashInActivityController, "AppErrors#handleAppCrashInActivityController(8) -> record crash data", chain -> {
                 Object result = chain.proceed();
                 Object thisObj = chain.getThisObject();
                 Context context = thisObj != null ? (Context) getField(thisObj, "mContext") : null;

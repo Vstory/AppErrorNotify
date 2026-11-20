@@ -19,6 +19,7 @@ import androidx.core.view.ViewKt;
 
 import io.github.vstory.apperrors.R;
 import io.github.vstory.apperrors.bean.AppErrorsInfoBean;
+import io.github.vstory.apperrors.data.AppErrorsRecordData;
 import io.github.vstory.apperrors.data.ConfigData;
 import io.github.vstory.apperrors.data.factory.CompoundButtonFactoryKt;
 import io.github.vstory.apperrors.databinding.ActivityAppErrorsDetailBinding;
@@ -54,9 +55,77 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
 
     private String stackTrace = "";
 
+    /** 当前展示的记录；列表页传入的是摘要（stackTrace 已剥离），补拉完整记录后重渲染 */
+    private AppErrorsInfoBean info;
+
     @Override
     protected void onCreate() {
-        if (!initUi(getIntent())) return;
+        info = parseInfo(getIntent());
+        if (info == null) {
+            toastAndFinish("AppErrorsInfo");
+            return;
+        }
+        if (info.isEmpty()) {
+            showEmptyInfoDialog();
+            return;
+        }
+        if (info.stackTrace == null) info.stackTrace = "";
+        if (info.stackTrace.isEmpty() && info.recordKey != null && !info.recordKey.isEmpty()) {
+            loadFullInfo();
+            return;
+        }
+        render();
+    }
+
+    private AppErrorsInfoBean parseInfo(Intent intent) {
+        try {
+            Object extra = intent != null ? FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_APP_ERRORS_INFO) : null;
+            if (extra instanceof AppErrorsInfoBean) return (AppErrorsInfoBean) extra;
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private void showEmptyInfoDialog() {
+        ViewKt.setVisible(binding.appPanelScrollView, false);
+        DialogBuilder<?> dlg = new DialogBuilder<>(this);
+        dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
+        dlg.setMsg(LocaleFactoryKt.getLocale().getUnableGetAppErrorsRecordTip());
+        dlg.confirmButton(LocaleFactoryKt.getLocale().getGotIt(), () -> {
+            dlg.cancel();
+            finish();
+        });
+        dlg.cancelButton(LocaleFactoryKt.getLocale().getGoItNow(), () -> {
+            dlg.cancel();
+            finish();
+            Intent nav = new Intent(this, AppErrorsRecordActivity.class);
+            nav.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(nav);
+        });
+        dlg.noCancelable();
+        dlg.show();
+    }
+
+    /**
+     * 列表页传给详情页的是摘要（stackTrace 为空），完整记录要按 recordKey 单取一条；
+     * 拉不到时仍按摘要渲染，头部信息可用，只在堆栈区提示。
+     */
+    private void loadFullInfo() {
+        AppErrorsRecordData.requestErrorDetail(this, info.recordKey, (ctx, intent) -> {
+            AppErrorsInfoBean full = AppErrorsRecordData.beanFromResult(intent);
+            if (full != null) {
+                info = full;
+                render();
+                return;
+            }
+            FunctionFactoryKt.toast(this, LocaleFactoryKt.getLocale().getUnableGetAppErrorsRecordTip());
+            render();
+            binding.errorStackTraceMovableText.setText(getString(R.string.system_service_not_ready_tip));
+            binding.errorStackTraceFixedText.setText(getString(R.string.system_service_not_ready_tip));
+        });
+    }
+
+    private void render() {
         binding.titleBackIcon.setOnClickListener(v -> onBackPressed());
         CompoundButtonFactoryKt.bind(binding.disableAutoWrapErrorStackTraceSwitch,
                 () -> ConfigData.isDisableAutoWrapErrorStackTrace(),
@@ -73,62 +142,28 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
                 });
         binding.detailTitleText.setOnClickListener(v -> binding.appPanelScrollView.smoothScrollTo(0, 0));
         resetScrollView();
-    }
-
-    private boolean initUi(Intent intent) {
-        AppErrorsInfoBean parsedInfo = null;
-        try {
-            Object extra = intent != null ? FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_APP_ERRORS_INFO) : null;
-            if (extra instanceof AppErrorsInfoBean) parsedInfo = (AppErrorsInfoBean) extra;
-        } catch (Exception ignored) {
-        }
-        final AppErrorsInfoBean appErrorsInfo = parsedInfo;
-        if (appErrorsInfo == null) {
-            toastAndFinish("AppErrorsInfo");
-            return false;
-        }
-        if (appErrorsInfo.isEmpty()) {
-            ViewKt.setVisible(binding.appPanelScrollView, false);
-            DialogBuilder<?> dlg = new DialogBuilder<>(this);
-            dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
-            dlg.setMsg(LocaleFactoryKt.getLocale().getUnableGetAppErrorsRecordTip());
-            dlg.confirmButton(LocaleFactoryKt.getLocale().getGotIt(), () -> {
-                dlg.cancel();
-                finish();
-            });
-            dlg.cancelButton(LocaleFactoryKt.getLocale().getGoItNow(), () -> {
-                dlg.cancel();
-                finish();
-                Intent nav = new Intent(this, AppErrorsRecordActivity.class);
-                nav.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(nav);
-            });
-            dlg.noCancelable();
-            dlg.show();
-            return false;
-        }
-        binding.appInfoItem.setOnClickListener(v -> FunctionFactoryKt.openSelfSetting(this, appErrorsInfo.packageName));
+        binding.appInfoItem.setOnClickListener(v -> FunctionFactoryKt.openSelfSetting(this, info.packageName));
         binding.printIcon.setOnClickListener(v -> {
-            Log.e("AppErrorNotify", appErrorsInfo.stackTrace);
-            ModuleLogger.log("E", "AppErrorNotify", appErrorsInfo.stackTrace, null);
+            Log.e("AppErrorNotify", info.stackTrace);
+            ModuleLogger.log("E", "AppErrorNotify", info.stackTrace, null);
             FunctionFactoryKt.toast(this, LocaleFactoryKt.getLocale().getPrintToLogcatSuccess());
         });
         binding.copyIcon.setOnClickListener(v -> {
             StackTraceShareHelper.showChoose(this, LocaleFactoryKt.getLocale().getCopyErrorStack(),
                     (sDeviceBrand, sDeviceModel, sDisplay, sPackageName) ->
                             FunctionFactoryKt.copyToClipboardMarkdown(this,
-                                    appErrorsInfo.stackOutputShareContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName)));
+                                    info.stackOutputShareContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName)));
         });
         binding.exportIcon.setOnClickListener(v -> {
             StackTraceShareHelper.showChoose(this, LocaleFactoryKt.getLocale().getExportToFile(),
                     (sDeviceBrand, sDeviceModel, sDisplay, sPackageName) -> {
-                        stackTrace = appErrorsInfo.stackOutputFileContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName);
+                        stackTrace = info.stackOutputFileContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName);
                         try {
                             Intent intent2 = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                             intent2.addCategory(Intent.CATEGORY_OPENABLE);
                             intent2.setType("*/*");
-                            String packageName = sPackageName ? appErrorsInfo.packageName : "anonymous";
-                            intent2.putExtra(Intent.EXTRA_TITLE, packageName + "_" + appErrorsInfo.getFileNameTime() + ".log");
+                            String packageName = sPackageName ? info.packageName : "anonymous";
+                            intent2.putExtra(Intent.EXTRA_TITLE, packageName + "_" + info.getFileNameTime() + ".log");
                             startActivityForResult(intent2, WRITE_REQUEST_CODE);
                         } catch (Exception e) {
                             FunctionFactoryKt.toast(this, "Start Android SAF failed");
@@ -138,7 +173,7 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         binding.shareIcon.setOnClickListener(v -> {
             StackTraceShareHelper.showChoose(this, LocaleFactoryKt.getLocale().getShareErrorStack(),
                     (sDeviceBrand, sDeviceModel, sDisplay, sPackageName) -> {
-                        String content = appErrorsInfo.stackOutputShareContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName);
+                        String content = info.stackOutputShareContent(sDeviceBrand, sDeviceModel, sDisplay, sPackageName);
                         Intent share = new Intent(Intent.ACTION_SEND);
                         if (ConfigData.isShareWithFile()) {
                             share.setType("application/octet-stream");
@@ -160,26 +195,26 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
                         startActivity(Intent.createChooser(share, LocaleFactoryKt.getLocale().getShareErrorStack()));
                     });
         });
-        binding.appIcon.setImageDrawable(FunctionFactoryKt.appIconOf(this, appErrorsInfo.packageName));
-        String appName = FunctionFactoryKt.appNameOf(this, appErrorsInfo.packageName);
-        binding.appNameText.setText(appName.trim().isEmpty() ? appErrorsInfo.packageName : appName);
-        binding.appVersionText.setText(appErrorsInfo.getVersionBrand());
-        ViewKt.setVisible(binding.appUserIdText, appErrorsInfo.userId > 0);
-        binding.appUserIdText.setText(LocaleFactoryKt.getLocale().userId(appErrorsInfo.userId));
-        binding.appCpuAbiText.setText(appErrorsInfo.cpuAbi.trim().isEmpty() ? LocaleFactoryKt.getLocale().getNoCpuAbi() : appErrorsInfo.cpuAbi);
-        binding.appTargetSdkText.setText(LocaleFactoryKt.getLocale().appTargetSdk(appErrorsInfo.targetSdk));
-        binding.appMinSdkText.setText(LocaleFactoryKt.getLocale().appMinSdk(appErrorsInfo.minSdk));
-        ViewKt.setGone(binding.jvmErrorPanel, appErrorsInfo.isNativeCrash);
-        binding.errorTypeIcon.setImageResource(appErrorsInfo.isNativeCrash ? R.drawable.ic_cpp : R.drawable.ic_java);
-        binding.errorInfoText.setText(appErrorsInfo.exceptionMessage);
-        binding.errorTypeText.setText(appErrorsInfo.exceptionClassName);
-        binding.errorFileNameText.setText(appErrorsInfo.throwFileName);
-        binding.errorThrowClassText.setText(appErrorsInfo.throwClassName);
-        binding.errorThrowMethodText.setText(appErrorsInfo.throwMethodName);
-        binding.errorLineNumberText.setText(String.valueOf(appErrorsInfo.throwLineNumber));
-        binding.errorRecordTimeText.setText(appErrorsInfo.getDateTime());
-        binding.errorVersionText.setText(appErrorsInfo.getVersionBrand());
-        binding.errorPackageText.setText(appErrorsInfo.packageName);
+        binding.appIcon.setImageDrawable(FunctionFactoryKt.appIconOf(this, info.packageName));
+        String appName = FunctionFactoryKt.appNameOf(this, info.packageName);
+        binding.appNameText.setText(appName.trim().isEmpty() ? info.packageName : appName);
+        binding.appVersionText.setText(info.getVersionBrand());
+        ViewKt.setVisible(binding.appUserIdText, info.userId > 0);
+        binding.appUserIdText.setText(LocaleFactoryKt.getLocale().userId(info.userId));
+        binding.appCpuAbiText.setText(info.cpuAbi.trim().isEmpty() ? LocaleFactoryKt.getLocale().getNoCpuAbi() : info.cpuAbi);
+        binding.appTargetSdkText.setText(LocaleFactoryKt.getLocale().appTargetSdk(info.targetSdk));
+        binding.appMinSdkText.setText(LocaleFactoryKt.getLocale().appMinSdk(info.minSdk));
+        ViewKt.setGone(binding.jvmErrorPanel, info.isNativeCrash);
+        binding.errorTypeIcon.setImageResource(info.isNativeCrash ? R.drawable.ic_cpp : R.drawable.ic_java);
+        binding.errorInfoText.setText(info.exceptionMessage);
+        binding.errorTypeText.setText(info.exceptionClassName);
+        binding.errorFileNameText.setText(info.throwFileName);
+        binding.errorThrowClassText.setText(info.throwClassName);
+        binding.errorThrowMethodText.setText(info.throwMethodName);
+        binding.errorLineNumberText.setText(String.valueOf(info.throwLineNumber));
+        binding.errorRecordTimeText.setText(info.getDateTime());
+        binding.errorVersionText.setText(info.getVersionBrand());
+        binding.errorPackageText.setText(info.packageName);
         bindCopyValue(binding.errorInfoText);
         bindCopyValue(binding.errorTypeText);
         bindCopyValue(binding.errorFileNameText);
@@ -198,8 +233,8 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
         bindCopyLabel(binding.errorThrowMethodLabel, binding.errorThrowMethodText);
         bindCopyLabel(binding.errorLineNumberLabel, binding.errorLineNumberText);
         bindCopyLabel(binding.errorRecordTimeLabel, binding.errorRecordTimeText);
-        String runningPage = appErrorsInfo.getRunningActivity();
-        boolean hasPageRow = (runningPage != null && !runningPage.trim().isEmpty()) || appErrorsInfo.isBackgroundCrash();
+        String runningPage = info.getRunningActivity();
+        boolean hasPageRow = (runningPage != null && !runningPage.trim().isEmpty()) || info.isBackgroundCrash();
         ViewKt.setGone(binding.errorPageRow, !hasPageRow);
         if (hasPageRow) {
             binding.errorPageText.setText(runningPage != null && !runningPage.trim().isEmpty()
@@ -209,19 +244,18 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
             bindCopyLabel(binding.errorPageLabel, binding.errorPageText);
         }
         binding.stackCopyButton.setOnClickListener(v -> {
-            FunctionFactoryKt.copyToClipboardMarkdown(this, appErrorsInfo.stackTrace);
+            FunctionFactoryKt.copyToClipboardMarkdown(this, info.stackTrace);
         });
-        binding.errorStackTraceMovableText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace, appErrorsInfo.isNativeCrash));
-        binding.errorStackTraceFixedText.setText(buildStyledStackTrace(appErrorsInfo.stackTrace, appErrorsInfo.isNativeCrash));
+        binding.errorStackTraceMovableText.setText(buildStyledStackTrace(info.stackTrace, info.isNativeCrash));
+        binding.errorStackTraceFixedText.setText(buildStyledStackTrace(info.stackTrace, info.isNativeCrash));
         binding.appPanelScrollView.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
             @Override
             public void onScrollChange(android.view.View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
-                String n = FunctionFactoryKt.appNameOf(AppErrorsDetailActivity.this, appErrorsInfo.packageName);
+                String n = FunctionFactoryKt.appNameOf(AppErrorsDetailActivity.this, info.packageName);
                 binding.detailTitleText.setText(scrollY >= FunctionFactoryKt.dp(30, AppErrorsDetailActivity.this)
-                        ? (n.trim().isEmpty() ? appErrorsInfo.packageName : n) : LocaleFactoryKt.getLocale().getErrorDetailView());
+                        ? (n.trim().isEmpty() ? info.packageName : n) : LocaleFactoryKt.getLocale().getErrorDetailView());
             }
         });
-        return true;
     }
 
     private CharSequence buildStyledStackTrace(String stackTrace, boolean isNativeCrash) {
@@ -326,6 +360,15 @@ public class AppErrorsDetailActivity extends BaseActivity<ActivityAppErrorsDetai
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (initUi(intent)) binding.appPanelScrollView.scrollTo(0, 0);
+        AppErrorsInfoBean next = parseInfo(intent);
+        if (next == null || next.isEmpty()) return;
+        info = next;
+        binding.appPanelScrollView.scrollTo(0, 0);
+        if (info.stackTrace == null) info.stackTrace = "";
+        if (info.stackTrace.isEmpty() && info.recordKey != null && !info.recordKey.isEmpty()) {
+            loadFullInfo();
+            return;
+        }
+        render();
     }
 }

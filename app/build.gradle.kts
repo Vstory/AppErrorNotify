@@ -38,8 +38,12 @@ android {
         applicationId = "io.github.vstory.apperrors"
         minSdk = 26
         targetSdk = 37
-        versionName = "1.18"
-        versionCode = 81
+        // 版本号唯一来源：build.sh 与 build.yml 都用正则读这一行的字面量做 tag / 产物名 / 发布校验，
+        //   故 base 必须紧贴等号成 "x.y" 形状（整数/变量会让三处读取同时失效）。
+        // 后缀由 ci 渠道用 -PappVersionSuffix 注入，格式对齐 Kelivo.F：1.18+ci.3766c3f。
+        //   不加后缀的话并装多个 ci 包时，系统「应用信息」里长得完全一样，分不出是哪个提交。
+        versionName = "1.18" + (findProperty("appVersionSuffix")?.let { "+$it" } ?: "")
+        versionCode = 82
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -58,6 +62,10 @@ android {
         buildConfig = true
     }
     lint { checkReleaseBuilds = false }
+    // 单测在纯 JVM 上跑，android.util.Log 之类默认抛 "not mocked"
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 
     // 语言裁剪（2026-09-30 用户要求：只保留中文 + 英文）
     // 项目自身只有 values/（英）+ values-zh-rCN（简中）；APK 里另外 80 余种语言全是

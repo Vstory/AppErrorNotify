@@ -290,14 +290,41 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
         return b.packageName + "|J|" + cls + "|" + file + "|" + method;
     }
 
+    /** 导出每页条数：完整记录一页的字节量远低于 Binder 事务上限 */
+    private static final int EXPORT_PAGE_SIZE = 20;
+
     private void exportAll() {
         clearAllExportTemp();
         StackTraceShareHelper.showChoose(this, LocaleFactoryKt.getLocale().getExportAll(), (sDeviceBrand, sDeviceModel, sDisplay, sPackageName) -> {
             String path = getCacheDir().getAbsolutePath() + "/temp";
             new File(path).mkdirs();
-            for (int index = 0; index < listData.size(); index++) {
-                AppErrorsInfoBean bean = listData.get(index);
-                String packageName = sPackageName ? bean.packageName : "anonymous_" + index;
+            exportPage(path, 0, EXPORT_PAGE_SIZE, listData.size(),
+                    sDeviceBrand, sDeviceModel, sDisplay, sPackageName);
+        });
+    }
+
+    /**
+     * 分页拉完整记录再逐条写 .log：列表 bean 已摘要化（stackTrace 为空），
+     * 一次要回 200 条完整记录会超 Binder 事务上限。
+     */
+    private void exportPage(final String path, final int offset, final int limit, final int total,
+                            final boolean sDeviceBrand, final boolean sDeviceModel,
+                            final boolean sDisplay, final boolean sPackageName) {
+        AppErrorsRecordData.fetchFullPage(this, offset, limit, (ctx, intent) -> {
+            java.util.List<AppErrorsInfoBean> page = AppErrorsRecordData.listFromResult(intent);
+            if (page.isEmpty()) {
+                if (offset == 0 && total > 0) {
+                    // 通道没通（模块未注入/未重启）：别导出个空 zip 让用户以为记录没了
+                    FunctionFactoryKt.toast(AppErrorsRecordActivity.this,
+                            getString(R.string.system_service_not_ready_tip));
+                    return;
+                }
+                finishExport(path);
+                return;
+            }
+            for (int index = 0; index < page.size(); index++) {
+                AppErrorsInfoBean bean = page.get(index);
+                String packageName = sPackageName ? bean.packageName : "anonymous_" + (offset + index);
                 File f = new File(path + "/" + packageName + "_" + bean.getFileNameTime() + ".log");
                 try {
                     java.io.FileWriter writer = new java.io.FileWriter(f);
@@ -306,18 +333,27 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                 } catch (Exception ignored) {
                 }
             }
-            outPutFilePath = getCacheDir().getAbsolutePath() + "/temp_" + System.currentTimeMillis() + ".zip";
-            ZipFileTool.zipMultiFile(path, outPutFilePath, false);
-            try {
-                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*");
-                intent.putExtra(Intent.EXTRA_TITLE, "AppErrorNotify_" + FunctionFactoryKt.toFileNameTime(System.currentTimeMillis()) + ".zip");
-                startActivityForResult(intent, WRITE_REQUEST_CODE);
-            } catch (Exception e) {
-                FunctionFactoryKt.toast(this, "Start Android SAF failed");
+            int next = offset + page.size();
+            if (next >= total) {
+                finishExport(path);
+                return;
             }
+            exportPage(path, next, limit, total, sDeviceBrand, sDeviceModel, sDisplay, sPackageName);
         });
+    }
+
+    private void finishExport(String path) {
+        outPutFilePath = getCacheDir().getAbsolutePath() + "/temp_" + System.currentTimeMillis() + ".zip";
+        ZipFileTool.zipMultiFile(path, outPutFilePath, false);
+        try {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            intent.putExtra(Intent.EXTRA_TITLE, "AppErrorNotify_" + FunctionFactoryKt.toFileNameTime(System.currentTimeMillis()) + ".zip");
+            startActivityForResult(intent, WRITE_REQUEST_CODE);
+        } catch (Exception e) {
+            FunctionFactoryKt.toast(this, "Start Android SAF failed");
+        }
     }
 
     private void clearAllExportTemp() {
@@ -366,7 +402,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                     dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
                     dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureRemoveRecord());
                     dlg.confirmButton(() -> {
-                        AppErrorsRecordData.requestRemove(this, bean);
+                        AppErrorsRecordData.requestRemove(this, bean.recordKey);
                         refreshData();
                     });
                     dlg.cancelButton();

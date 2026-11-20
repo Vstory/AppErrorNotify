@@ -5,27 +5,24 @@
  *    RemotePreferences 是只读实现（LSPosedRemotePreferences.edit() 抛 UnsupportedOperationException）！
  *    原版就是这么做的（system_server uid=1000 有 /data/misc 写权限）
  *
- * 目录名设计（防检测/防冲突）：
- *   /data/misc/apperrors_<random16>/  —— random16 是**运行时动态生成**的随机字符
- *   - 首次安装并激活生效时（system_server 侧 ensureHostContext → init）生成并持久化
- *   - 之后只要模块不被卸载就一直复用；卸载重装（firstInstallTime 变化）→ 重新生成
- *   - 随机串存于 id 文件 /data/misc/apperrors_dir_id，内容 "<firstInstallTime>:<random>"
- *   - system_server（uid=1000）可写；UI 进程只读该文件（文件 0666）
+ * 目录：/data/misc/apperrornotify/（固定路径，system_server 写、模块 UI 只读）
+ *   v1.18 及更早用 /data/misc/apperrors_<random16>/ + id 文件 apperrors_dir_id 存随机串，
+ *   但 system_server 写该 id 文件会静默失败（SELinux）→ 随机目录不可复现，只剩兜底扫描在撑。
+ *   现改为固定目录，旧随机目录内的 JSON 在首次启动时一次性迁移（见 migrateLegacyFolder）。
  */
 package io.github.vstory.apperrors.data;
 
 import android.content.Context;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.util.Log;
 
 import io.github.vstory.apperrors.bean.AppErrorsInfoBean;
 import io.github.vstory.apperrors.utils.factory.FunctionFactoryKt;
-import io.github.vstory.apperrors.wrapper.BuildConfigWrapper;
+import com.google.gson.ExclusionStrategy;
+import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import java.io.File;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -33,29 +30,49 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * 异常记录存储控制类（system_server 写文件 /data/misc/apperrors_&lt;random&gt;/，模块 UI 读同一目录）
+ * 异常记录存储控制类（system_server 写文件 /data/misc/apperrornotify/，模块 UI 读同一目录）
  */
 public class AppErrorsRecordData {
 
-    /** 基础目录（/data/misc 下） */
-    private static final String FOLDER_BASE = "/data/misc/";
+    /** 记录目录（固定路径；命名取应用名小写） */
+    private static final String FOLDER_PATH = "/data/misc/apperrornotify/";
 
-    /** 目录名前缀 */
-    private static final String FOLDER_PREFIX = "apperrors_";
+    /** 旧版随机目录前缀（v1.18 及更早），仅用于迁移与读取兜底；下个版本删 */
+    private static final String LEGACY_FOLDER_PREFIX = "apperrors_";
 
-    /** 随机串持久化文件（存 "<firstInstallTime>:<random>"；system_server 写 0666，UI 只读） */
-    private static final String ID_FILE_PATH = FOLDER_BASE + "apperrors_dir_id";
+    /** 旧版随机串 id 文件，迁移后删除；下个版本删 */
+    private static final String LEGACY_ID_FILE_PATH = "/data/misc/apperrors_dir_id";
 
-    /** 随机串长度 */
-    private static final int RANDOM_LENGTH = 16;
-
-    /** 历史记录保留上限（条数）：超出后丢弃最旧记录，防止风暴/长期使用让 /data/misc 下 JSON 无限累积 */
+    /**
+     * 历史记录保留上限（条数）：超出后丢弃最旧记录，防止风暴/长期使用让 /data/misc 下 JSON 无限累积。
+     * 调高会同时抬高摘要列表的 Binder 体积（约 0.5–1 KB/条）与每次刷新的全量读文件开销：
+     * 500 以内仍安全；再往上必须先让列表刷新的走分页，否则会退回切半重发、列表静默少一半。
+     */
     private static final int MAX_RECORDS = 200;
 
-    /** 随机字符表 */
-    private static final char[] RANDOM_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
+    /**
+     * recordKey 只用于进程间定位记录（Intent extras / 广播），不属于磁盘格式。
+     * 用「只作用于序列化」的排除策略而不是 transient 表达这个意图：transient 会被 Java
+     * 原生序列化一并跳过，bean 传到 UI 侧就丢了 key。
+     */
+    private static final Gson gson = new GsonBuilder()
+            .addSerializationExclusionStrategy(new ExclusionStrategy() {
+                @Override
+                public boolean shouldSkipField(FieldAttributes f) {
+                    return "recordKey".equals(f.getName());
+                }
 
-    private static final Gson gson = new Gson();
+                @Override
+                public boolean shouldSkipClass(Class<?> clazz) {
+                    return false;
+                }
+            })
+            .create();
+
+    /** 只给单测看磁盘 JSON 形状（见 RecordKeySerializationTest） */
+    static Gson gsonForTest() {
+        return gson;
+    }
 
     /** 当前实例 */
     private static Context context;
@@ -75,138 +92,19 @@ public class AppErrorsRecordData {
         android.util.Log.i("AppErrorNotify", msg != null ? msg : "", e);
     }
 
-    // ===== 随机串 / 目录名解析 =====
+    // ===== 目录解析 / 旧目录迁移（旧版兼容代码下个版本删） =====
 
-    /** 生成随机字符串（SecureRandom，长度 16） */
-    private static String generateRandomId() {
-        SecureRandom random = new SecureRandom();
-        StringBuilder sb = new StringBuilder(RANDOM_LENGTH);
-        for (int i = 0; i < RANDOM_LENGTH; i++) sb.append(RANDOM_CHARS[random.nextInt(RANDOM_CHARS.length)]);
-        return sb.toString();
-    }
-
-    /** 模块自身首次安装时间（用于校验：升级不变 → 目录不变；卸载重装 → 变化 → 重新生成）
-     *  ⚠️ 必须用模块包名 BuildConfigWrapper.APPLICATION_ID！
-     *     不能用 ctx.getPackageName()：system_server 的 context 返回 "android"，
-     *     导致取到系统包 firstInstallTime 甚至 -1 → 校验失败 → 每次重启都新建目录（真机实证出现两个目录） */
-    private static long moduleFirstInstallTime(Context ctx) {
+    /** 旧版随机目录中含记录的最新一个；无则 null */
+    private static File legacyDataFolder() {
         try {
-            PackageManager pm = ctx.getPackageManager();
-            PackageInfo pi = pm.getPackageInfo(BuildConfigWrapper.APPLICATION_ID, 0);
-            return pi.firstInstallTime;
-        } catch (Throwable ignored) {
-            return -1L;
-        }
-    }
-
-    /** 读 id 文件内容 */
-    private static String readIdFile() {
-        try {
-            File f = new File(ID_FILE_PATH);
-            if (!f.exists()) return null;
-            String content = readFile(f);
-            if (content == null) return null;
-            String trimmed = content.trim();
-            return trimmed.isEmpty() ? null : trimmed;
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    /** 写 id 文件（仅 system_server 有权限；失败返回 false） */
-    private static boolean writeIdFile(String content) {
-        try {
-            File f = new File(ID_FILE_PATH);
-            writeFile(f, content);
-            try {
-                f.setReadable(true, false);
-                f.setWritable(true, false);
-            } catch (Throwable ignored) {
-            }
-            return true;
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    /**
-     * 解析目录路径（关键：随机后缀动态生成）
-     * @param ctx Context
-     * @param canGenerate true=system_server（有 /data/misc 写权限，可生成）；false=UI 进程（只读）
-     * @return 目录路径，或 null（UI 且 id 文件尚未生成）
-     */
-    private static String resolveFolderPath(Context ctx, boolean canGenerate) {
-        // system_server 进程内缓存
-        if (canGenerate && folderPath != null) return folderPath;
-        String id = null;
-        String idContent = null;
-        // 1. 读 id 文件（先看是否已有权威随机串）
-        String content = readIdFile();
-        if (content != null) {
-            String[] parts = content.split(":", 2);
-            if (parts.length == 2 && parts[1] != null && parts[1].matches("[A-Za-z0-9]{8,32}")) {
-                id = parts[1];
-                idContent = content;
-            }
-        }
-        // 2. 有 → 复用（校验 firstInstallTime：升级不变则继续复用；卸载重装变化则重新生成）
-        if (id != null && canGenerate) {
-            long installTime = moduleFirstInstallTime(ctx);
-            if (installTime >= 0 && idContent != null && idContent.startsWith(installTime + ":")) {
-                folderPath = FOLDER_BASE + FOLDER_PREFIX + id + "/";
-                return folderPath;
-            }
-            // firstInstallTime 不匹配（卸载重装）→ 尝试兜底复用已有目录（见步骤 3.5）
-        }
-        // 3. UI 进程且无权威 id → 无法生成（无写权限），返回 null（等 system_server 激活后生成）
-        if (!canGenerate) {
-            if (id != null) return FOLDER_BASE + FOLDER_PREFIX + id + "/";
-            return null;
-        }
-        // 3.5 system_server：id 文件缺失/失效 → 先扫描已有 apperrors_* 目录，有记录就复用（避免无限新建）
-        String existing = findExistingDataFolder();
-        if (existing != null) {
-            folderPath = existing;
-            // 重新持久化 id（修复 id 文件丢失/失效；firstInstallTime 用当前模块的）
-            long installTime = moduleFirstInstallTime(ctx);
-            if (installTime >= 0) {
-                String suffix = existing.substring(FOLDER_BASE.length() + FOLDER_PREFIX.length());
-                if (suffix.endsWith("/")) suffix = suffix.substring(0, suffix.length() - 1);
-                writeIdFile(installTime + ":" + suffix);
-            }
-            return folderPath;
-        }
-        // 4. system_server：无任何已有目录 → 生成新随机串并持久化
-        String newId = generateRandomId();
-        long installTime = moduleFirstInstallTime(ctx);
-        String newContent = installTime + ":" + newId;
-        // 写入 id 文件；若写入失败（极端情况）也继续用本次生成的路径
-        writeIdFile(newContent);
-        folderPath = FOLDER_BASE + FOLDER_PREFIX + newId + "/";
-        log("App errors records folder created: " + folderPath, null);
-        return folderPath;
-    }
-
-    /** 扫描 /data/misc/ 下已有 apperrors_* 目录，返回含记录数据的最新目录（无则 null）
-     *  兜底逻辑：id 文件丢失/校验失败时复用已有目录，避免重复新建 */
-    private static String findExistingDataFolder() {
-        try {
-            File base = new File(FOLDER_BASE);
-            File[] dirs = base.listFiles();
+            File[] dirs = new File("/data/misc/").listFiles();
             if (dirs == null) return null;
-            String best = null;
-            long bestTime = -1;
+            File best = null;
             for (File d : dirs) {
-                if (!d.isDirectory()) continue;
-                String name = d.getName();
-                if (!name.startsWith(FOLDER_PREFIX)) continue;
-                // 只复用"有记录数据"的目录（非空）
+                if (!d.isDirectory() || !d.getName().startsWith(LEGACY_FOLDER_PREFIX)) continue;
                 File[] children = d.listFiles();
                 if (children == null || children.length == 0) continue;
-                if (d.lastModified() > bestTime) {
-                    bestTime = d.lastModified();
-                    best = d.getAbsolutePath() + "/";
-                }
+                if (best == null || d.lastModified() > best.lastModified()) best = d;
             }
             return best;
         } catch (Throwable ignored) {
@@ -214,7 +112,51 @@ public class AppErrorsRecordData {
         }
     }
 
-    /** 获取当前异常记录数据目录（解析失败返回 null） */
+    /**
+     * 旧随机目录 → 固定目录（一次性）：只搬 .json，搬空后才删旧目录与 id 文件，
+     * 中途失败则保留旧目录（下次启动重试），不丢记录
+     * ⚠️ 用 renameTo 而非 copy：只有源/目标同在 /data 挂载点才成立（Android File.renameTo
+     *    限定同 mount point，跨 mount 静默返回 false）。目标若改到 /sdcard 或应用私有目录，
+     *    迁移会全量失败，日志里只留一行 moved=0，看不出是路径问题
+     */
+    private static void migrateLegacyFolder(File target) {
+        try {
+            File source = legacyDataFolder();
+            if (source == null) return;
+            if (!target.exists() && !target.mkdirs()) return;
+            int moved = 0;
+            File[] files = source.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (!f.isFile() || !f.getName().endsWith(".json")) continue;
+                    if (f.renameTo(new File(target, f.getName()))) moved++;
+                }
+            }
+            File[] left = source.listFiles();
+            if (left != null && left.length == 0) {
+                source.delete();
+                new File(LEGACY_ID_FILE_PATH).delete();
+            }
+            log("Migrated " + moved + " legacy record(s) to " + target, null);
+        } catch (Throwable t) {
+            log("Migrate legacy records folder failed", t);
+        }
+    }
+
+    /**
+     * 解析记录目录（固定路径）
+     * @param ctx Context
+     * @param canManage true=system_server（有 /data/misc 写权限，负责建目录与迁移旧目录）；false=UI 进程（只读）
+     * @return 目录路径
+     */
+    private static String resolveFolderPath(Context ctx, boolean canManage) {
+        if (folderPath != null) return folderPath;
+        if (canManage && !new File(FOLDER_PATH).exists()) migrateLegacyFolder(new File(FOLDER_PATH));
+        folderPath = FOLDER_PATH;
+        return folderPath;
+    }
+
+    /** 获取当前异常记录数据目录 */
     private static File errorsInfoDataFolder() {
         String p = folderPath != null ? folderPath : resolveFolderPath(context, isSystemServerMode);
         return p != null ? new File(p) : null;
@@ -222,7 +164,15 @@ public class AppErrorsRecordData {
 
     /** 获取当前全部异常记录数据文件（按修改时间倒序） */
     private static List<File> errorsInfoDataFiles() {
-        File folder = errorsInfoDataFolder();
+        List<File> list = jsonFilesIn(errorsInfoDataFolder());
+        if (list.isEmpty()) {
+            // 热重载窗口：system_server 还在跑旧代码、写的是随机目录 → 只读兜底（下个版本删）
+            list = jsonFilesIn(legacyDataFolder());
+        }
+        return list;
+    }
+
+    private static List<File> jsonFilesIn(File folder) {
         if (folder == null) return new ArrayList<>();
         File[] files = folder.listFiles();
         if (files == null) return new ArrayList<>();
@@ -253,7 +203,7 @@ public class AppErrorsRecordData {
             } catch (Throwable ignored) {
             }
         } catch (Throwable t) {
-            log("Can't create directory \"" + FOLDER_BASE + "\", there will be problems with the app errors records function", t);
+            log("Can't create directory \"" + FOLDER_PATH + "\", there will be problems with the app errors records function", t);
         }
     }
 
@@ -265,7 +215,10 @@ public class AppErrorsRecordData {
                 try {
                     String json = readFile(f);
                     AppErrorsInfoBean bean = gson.fromJson(json, AppErrorsInfoBean.class);
-                    if (bean != null) result.add(bean);
+                    if (bean != null) {
+                        bean.recordKey = f.getName();
+                        result.add(bean);
+                    }
                 } catch (Throwable ignored) {
                 }
             }
@@ -308,7 +261,93 @@ public class AppErrorsRecordData {
         return new java.util.ArrayList<>(readAllDataFromFiles());
     }
 
-    /** system_server 初始化（首次 hook 拿到 Context 后；动态生成随机目录并持久化） */
+    /** 摘要字段上限：列表回传只带这些，堆栈等大字段走详情/分页通道单取 */
+    private static final int SUMMARY_MESSAGE_MAX = 512;
+    private static final int SUMMARY_ACTIVITY_MAX = 256;
+
+    /**
+     * 供广播回传的摘要列表：剥离 stackTrace（单条可达几十 KB，200 条累加必然撑爆 Binder 事务），
+     * 其余列表渲染所需字段全保留。完整记录由 {@link #findByKey(String)} / {@link #fullPageFromFiles} 单取。
+     */
+    public static java.util.List<AppErrorsInfoBean> summaryListFromFiles() {
+        java.util.List<AppErrorsInfoBean> out = new java.util.ArrayList<>();
+        for (AppErrorsInfoBean bean : latestFromFiles()) out.add(toSummary(bean));
+        return out;
+    }
+
+    /** 分页读完整记录：只解析本页涉及的文件，导出时避免一次解析全部 */
+    public static java.util.List<AppErrorsInfoBean> fullPageFromFiles(int offset, int limit) {
+        java.util.List<AppErrorsInfoBean> out = new java.util.ArrayList<>();
+        List<File> files = errorsInfoDataFiles();
+        int from = Math.max(offset, 0);
+        int to = limit <= 0 ? files.size() : Math.min(files.size(), from + limit);
+        for (int i = from; i < to; i++) {
+            File f = files.get(i);
+            try {
+                String json = readFile(f);
+                if (json == null) continue;
+                AppErrorsInfoBean bean = gson.fromJson(json, AppErrorsInfoBean.class);
+                if (bean != null) {
+                    bean.recordKey = f.getName();
+                    out.add(bean);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return out;
+    }
+
+    /** 按磁盘文件名取单条完整记录 */
+    public static AppErrorsInfoBean findByKey(String key) {
+        if (key == null || key.isEmpty()) return null;
+        File folder = errorsInfoDataFolder();
+        if (folder == null) return null;
+        File file = new File(folder, key);
+        // 只认同目录下的裸文件名，挡掉 ../ 之类的路径穿越
+        if (!key.equals(file.getName()) || !file.isFile()) return null;
+        try {
+            String json = readFile(file);
+            if (json == null) return null;
+            AppErrorsInfoBean bean = gson.fromJson(json, AppErrorsInfoBean.class);
+            if (bean != null) bean.recordKey = file.getName();
+            return bean;
+        } catch (Throwable t) {
+            log("Read one app errors record failed", t);
+            return null;
+        }
+    }
+
+    private static AppErrorsInfoBean toSummary(AppErrorsInfoBean src) {
+        AppErrorsInfoBean s = new AppErrorsInfoBean();
+        s.pid = src.pid;
+        s.userId = src.userId;
+        s.cpuAbi = src.cpuAbi;
+        s.packageName = src.packageName;
+        s.versionName = src.versionName;
+        s.versionCode = src.versionCode;
+        s.targetSdk = src.targetSdk;
+        s.minSdk = src.minSdk;
+        s.isNativeCrash = src.isNativeCrash;
+        s.exceptionClassName = src.exceptionClassName;
+        s.exceptionMessage = clamp(src.exceptionMessage, SUMMARY_MESSAGE_MAX);
+        s.throwFileName = src.throwFileName;
+        s.throwClassName = src.throwClassName;
+        s.throwMethodName = src.throwMethodName;
+        s.throwLineNumber = src.throwLineNumber;
+        s.stackTrace = "";
+        s.runningActivity = clamp(src.runningActivity, SUMMARY_ACTIVITY_MAX);
+        s.isBackgroundCrash = src.isBackgroundCrash;
+        s.timestamp = src.timestamp;
+        s.recordKey = src.recordKey;
+        return s;
+    }
+
+    private static String clamp(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    /** system_server 初始化（首次 hook 拿到 Context 后；建固定目录并按需迁移旧随机目录） */
     public static void init(Context context) {
         AppErrorsRecordData.context = context;
         isSystemServerMode = true;
@@ -373,11 +412,21 @@ public class AppErrorsRecordData {
     public static void clearAll() {
         allData.clear();
         File folder = errorsInfoDataFolder();
-        if (folder == null) return;
-        try {
-            if (folder.exists()) deleteRecursively(folder);
-            initializeDataDirectory();
-        } catch (Throwable ignored) {
+        if (folder != null) {
+            try {
+                if (folder.exists()) deleteRecursively(folder);
+                initializeDataDirectory();
+            } catch (Throwable ignored) {
+            }
+        }
+        // 旧随机目录不清掉的话，读取兜底会把刚清空的记录又读回来（下个版本删）
+        File legacy = legacyDataFolder();
+        if (legacy != null) {
+            try {
+                deleteRecursively(legacy);
+                new File(LEGACY_ID_FILE_PATH).delete();
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -579,6 +628,105 @@ public class AppErrorsRecordData {
         }
     }
 
+    // ===== UI → system_server 一次性请求（详情 / 分页完整记录） =====
+
+    private static final String ACTION_GET_ERRORS = "io.github.vstory.apperrors.action.GET_ERRORS";
+    private static final String ACTION_ERRORS_RESULT = "io.github.vstory.apperrors.action.ERRORS_RESULT";
+    // 分页走独立 action：列表刷新与导出可能同时在跑，共用一个回传会互相收到对方的结果
+    private static final String ACTION_GET_ERRORS_PAGE = "io.github.vstory.apperrors.action.GET_ERRORS_PAGE";
+    private static final String ACTION_ERRORS_PAGE_RESULT = "io.github.vstory.apperrors.action.ERRORS_PAGE_RESULT";
+    private static final String ACTION_GET_ERROR_DETAIL = "io.github.vstory.apperrors.action.GET_ERROR_DETAIL";
+    private static final String ACTION_ERROR_DETAIL_RESULT = "io.github.vstory.apperrors.action.ERROR_DETAIL_RESULT";
+    private static final String EXTRA_RECORD_KEY = "record_key";
+    private static final String EXTRA_OFFSET = "offset";
+    private static final String EXTRA_LIMIT = "limit";
+
+    /** 单次请求-回传回调；超时或通道异常时 intent 为 null */
+    public interface RequestCallback {
+        void onResult(android.content.Context context, android.content.Intent intent);
+    }
+
+    /** 单次请求等待上限（ms）：详情与分页都是用户可见操作，超时即失败、不静默重试 */
+    private static final long ONESHOT_TIMEOUT_MS = 3000L;
+
+    /** UI 侧：按 recordKey 取单条完整记录 */
+    public static void requestErrorDetail(android.content.Context context, final String recordKey,
+                                         RequestCallback callback) {
+        requestOnce(context, ACTION_GET_ERROR_DETAIL, ACTION_ERROR_DETAIL_RESULT,
+                req -> req.putExtra(EXTRA_RECORD_KEY, recordKey), callback);
+    }
+
+    /** UI 侧：分页取完整记录（导出全部用，一次一页避免超 Binder 事务） */
+    public static void fetchFullPage(android.content.Context context, final int offset, final int limit,
+                                     RequestCallback callback) {
+        requestOnce(context, ACTION_GET_ERRORS_PAGE, ACTION_ERRORS_PAGE_RESULT, req -> {
+            req.putExtra(EXTRA_OFFSET, offset);
+            req.putExtra(EXTRA_LIMIT, limit);
+        }, callback);
+    }
+
+    private static void requestOnce(final android.content.Context context, String requestAction, String resultAction,
+                                    java.util.function.Consumer<android.content.Intent> filler,
+                                    final RequestCallback callback) {
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final boolean[] done = {false};
+        final android.content.BroadcastReceiver[] holder = new android.content.BroadcastReceiver[1];
+        final Runnable timeoutTask = () -> {
+            if (done[0]) return;
+            done[0] = true;
+            try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+            if (callback != null) callback.onResult(context, null);
+        };
+        try {
+            android.content.IntentFilter filter = new android.content.IntentFilter();
+            filter.addAction(resultAction);
+            android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                    if (done[0]) return;
+                    done[0] = true;
+                    handler.removeCallbacks(timeoutTask);
+                    try { ctx.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                    if (callback != null) callback.onResult(ctx, intent);
+                }
+            };
+            holder[0] = receiver;
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+            else
+                context.registerReceiver(receiver, filter);
+            handler.postDelayed(timeoutTask, ONESHOT_TIMEOUT_MS);
+            android.content.Intent request = new android.content.Intent(requestAction);
+            if (filler != null) filler.accept(request);
+            // 不能 setPackage：system_server 里的动态 receiver 不属于本包
+            context.sendBroadcast(request);
+        } catch (Throwable t) {
+            log("Request " + requestAction + " failed", t);
+            if (!done[0]) {
+                done[0] = true;
+                handler.removeCallbacks(timeoutTask);
+                if (callback != null) callback.onResult(context, null);
+            }
+        }
+    }
+
+    /** 从详情回传 intent 取完整记录（失败为 null） */
+    public static AppErrorsInfoBean beanFromResult(android.content.Intent intent) {
+        if (intent == null) return null;
+        Object extra = FunctionFactoryKt.getSerializableExtraCompat(intent, "bean");
+        return extra instanceof AppErrorsInfoBean ? (AppErrorsInfoBean) extra : null;
+    }
+
+    /** 从列表/分页回传 intent 取记录数组（失败为空表） */
+    public static java.util.List<AppErrorsInfoBean> listFromResult(android.content.Intent intent) {
+        java.util.List<AppErrorsInfoBean> out = new java.util.ArrayList<>();
+        if (intent == null) return out;
+        Object extra = FunctionFactoryKt.getSerializableExtraCompat(intent, "errors");
+        if (!(extra instanceof java.util.List)) return out;
+        for (Object o : (java.util.List<?>) extra) if (o instanceof AppErrorsInfoBean) out.add((AppErrorsInfoBean) o);
+        return out;
+    }
+
     // ===== UI → system_server 操作广播（clear / remove 需在 system_server 侧执行） =====
 
     /** 请求 system_server 清除全部记录 */
@@ -591,11 +739,30 @@ public class AppErrorsRecordData {
         }
     }
 
+    /** 按磁盘文件名删除单条记录（UI 回传的是摘要 bean，只能靠文件名定位） */
+    public static void removeByKey(String key) {
+        if (key == null || key.isEmpty()) return;
+        File folder = errorsInfoDataFolder();
+        if (folder == null) return;
+        File file = new File(folder, key);
+        if (!key.equals(file.getName())) return;
+        for (AppErrorsInfoBean b : allData) {
+            if (key.equals(b.recordKey)) {
+                allData.remove(b);
+                break;
+            }
+        }
+        try {
+            file.delete();
+        } catch (Throwable ignored) {
+        }
+    }
+
     /** 请求 system_server 移除指定记录 */
-    public static void requestRemove(android.content.Context context, AppErrorsInfoBean bean) {
+    public static void requestRemove(android.content.Context context, String recordKey) {
         try {
             android.content.Intent req = new android.content.Intent("io.github.vstory.apperrors.action.REMOVE_ERROR");
-            req.putExtra("bean", bean);
+            req.putExtra("record_key", recordKey);
             context.sendBroadcast(req);
         } catch (Throwable t) {
             log("Request remove failed", t);

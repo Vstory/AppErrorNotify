@@ -38,7 +38,7 @@ public class HookEntry extends XposedModule {
 
     @Override
     public void onSystemServerStarting(SystemServerStartingParam param) {
-        log(Log.INFO, TAG, "onSystemServerStarting: system_server 初始化 + 注册 hook");
+        log(Log.INFO, TAG, "onSystemServerStarting: system_server init + hook registration");
         try {
             ConfigData.init(getRemotePreferences(ConfigData.PREFS_GROUP));
             MutedErrorsData.init(getRemotePreferences(MutedErrorsData.PREFS_GROUP));
@@ -52,15 +52,22 @@ public class HookEntry extends XposedModule {
                     log(Log.INFO, TAG, "AppErrorsRecordData initialized at system server startup, folder=" + AppErrorsRecordData.getFolderPathForLog());
                 }
             } catch (Throwable t) {
-                log(Log.ERROR, TAG, "异常记录数据早期初始化跳过\n  " + t, t);
+                log(Log.ERROR, TAG, "error records early init skipped\n  " + t, t);
             }
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "onSystemServerStarting 异常\n  " + t, t);
+            log(Log.ERROR, TAG, "onSystemServerStarting failed\n  " + t, t);
         }
     }
 
     @Override
     public boolean onHotReloading(HotReloadingParam param) {
+        // 契约要求返回 true 前注销 external callbacks；注销失败也放行，
+        // 否则用户会卡在「热重载永远失败」，比残留一个 receiver 更难恢复
+        try {
+            FrameworkHooker.unregisterExternalCallbacks();
+        } catch (Throwable t) {
+            log(Log.ERROR, TAG, "onHotReloading unregister external callbacks failed\n  " + t, t);
+        }
         return true;
     }
 
@@ -73,7 +80,7 @@ public class HookEntry extends XposedModule {
             ConfigData.init(getRemotePreferences(ConfigData.PREFS_GROUP));
             MutedErrorsData.init(getRemotePreferences(MutedErrorsData.PREFS_GROUP));
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "onHotReloaded 配置绑定失败\n  " + t, t);
+            log(Log.ERROR, TAG, "onHotReloaded config binding failed\n  " + t, t);
         }
         ClassLoader cl = null;
         List<HookHandle> oldHandles = param.getOldHookHandles();
@@ -91,17 +98,18 @@ public class HookEntry extends XposedModule {
         try {
             FrameworkHooker.install(this, cl);
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "onHotReloaded 重装 hook 异常\n  " + t, t);
+            log(Log.ERROR, TAG, "onHotReloaded hook reinstall failed\n  " + t, t);
         }
-        // 热重载重置了 static：恢复广播标志与记录存储，否则通道/记录会分裂
+        // 热重载重置了 static 且不重放 onSystemServerStarting：记录存储与通道都要在这里重建；
+        // 旧 receiver 已在 onHotReloading 注销，此刻注册才能把新 filter 装上
         try {
-            FrameworkHooker.restoreBroadcastChannelRegistered();
             android.content.Context sysCtx = FrameworkHooker.getSystemServerContext();
             if (sysCtx != null) {
                 AppErrorsRecordData.init(sysCtx);
+                FrameworkHooker.registerExternalCallbacks(sysCtx);
             }
         } catch (Throwable t) {
-            log(Log.ERROR, TAG, "HotReloaded 状态恢复跳过\n  " + t, t);
+            log(Log.ERROR, TAG, "HotReloaded state restore skipped\n  " + t, t);
         }
     }
 }
