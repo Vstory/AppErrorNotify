@@ -86,6 +86,9 @@ public class AppErrorsRecordData {
     /**
      * 旧随机目录 → 固定目录（一次性）：只搬 .json，搬空后才删旧目录与 id 文件，
      * 中途失败则保留旧目录（下次启动重试），不丢记录
+     * ⚠️ 用 renameTo 而非 copy：只有源/目标同在 /data 挂载点才成立（Android File.renameTo
+     *    限定同 mount point，跨 mount 静默返回 false）。目标若改到 /sdcard 或应用私有目录，
+     *    迁移会全量失败，日志里只留一行 moved=0，看不出是路径问题
      */
     private static void migrateLegacyFolder(File target) {
         try {
