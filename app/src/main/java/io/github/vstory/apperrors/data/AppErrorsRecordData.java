@@ -43,7 +43,11 @@ public class AppErrorsRecordData {
     /** 旧版随机串 id 文件，迁移后删除；下个版本删 */
     private static final String LEGACY_ID_FILE_PATH = "/data/misc/apperrors_dir_id";
 
-    /** 历史记录保留上限（条数）：超出后丢弃最旧记录，防止风暴/长期使用让 /data/misc 下 JSON 无限累积 */
+    /**
+     * 历史记录保留上限（条数）：超出后丢弃最旧记录，防止风暴/长期使用让 /data/misc 下 JSON 无限累积。
+     * 调高会同时抬高摘要列表的 Binder 体积（约 0.5–1 KB/条）与每次刷新的全量读文件开销：
+     * 500 以内仍安全；再往上必须先让列表刷新的走分页，否则会退回切半重发、列表静默少一半。
+     */
     private static final int MAX_RECORDS = 200;
 
     /**
