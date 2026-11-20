@@ -58,6 +58,10 @@ android {
         buildConfig = true
     }
     lint { checkReleaseBuilds = false }
+    // 单测在纯 JVM 上跑，android.util.Log 之类默认抛 "not mocked"
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 
     // 语言裁剪（2026-09-30 用户要求：只保留中文 + 英文）
     // 项目自身只有 values/（英）+ values-zh-rCN（简中）；APK 里另外 80 余种语言全是
