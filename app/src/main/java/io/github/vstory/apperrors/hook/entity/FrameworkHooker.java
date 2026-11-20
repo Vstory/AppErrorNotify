@@ -408,7 +408,7 @@ public class FrameworkHooker {
                 try {
                     ctx.unregisterReceiver(errorReceiver);
                 } catch (Throwable t) {
-                    logDebug("unregister error channel skipped: " + t);
+                    logDebug("error records channel: unregister skipped: " + t);
                 }
             }
             if (lifeReceiver != null) {
@@ -473,11 +473,11 @@ public class FrameworkHooker {
                 return;
             } catch (Throwable t) {
                 if (!isTransactionTooLarge(t) || data.size() <= 1) {
-                    logDebug("Error channel: send records failed \"--count " + data.size() + "\" --" + t);
+                    logDebug("error records channel: send records failed \"--count " + data.size() + "\" --" + t);
                     return;
                 }
                 data = new java.util.ArrayList<>(data.subList(0, data.size() / 2));
-                logDebug("Error channel: payload too large, retry with " + data.size() + " records");
+                logDebug("error records channel: payload too large, retry with " + data.size() + " records");
             }
         }
     }
@@ -509,7 +509,7 @@ public class FrameworkHooker {
                             java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> payload =
                                     AppErrorsRecordData.summaryListFromFiles();
                             sendRecordsResult(ctx, payload);
-                            logDebug("Error channel: sent " + payload.size() + " summaries to UI");
+                            logDebug("error records channel: sent " + payload.size() + " summaries to UI");
                         } else if (ACTION_GET_ERRORS_PAGE.equals(action)) {
                             int offset = Math.max(intent.getIntExtra(EXTRA_OFFSET, 0), 0);
                             // 钳一页上限：UI 传 0 或巨值都会把整批记录塞进一次事务
@@ -520,7 +520,7 @@ public class FrameworkHooker {
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
                             result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(page));
                             ctx.sendBroadcast(result);
-                            logDebug("Error channel: sent " + page.size() + " full records to UI --offset " + offset);
+                            logDebug("error records channel: sent " + page.size() + " full records to UI --offset " + offset);
                         } else if (ACTION_GET_ERROR_DETAIL.equals(action)) {
                             String key = intent.getStringExtra(EXTRA_RECORD_KEY);
                             io.github.vstory.apperrors.bean.AppErrorsInfoBean bean = AppErrorsRecordData.findByKey(key);
@@ -528,11 +528,11 @@ public class FrameworkHooker {
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
                             if (bean != null) result.putExtra(EXTRA_BEAN, bean);
                             ctx.sendBroadcast(result);
-                            logDebug("Error channel: sent record detail \""
+                            logDebug("error records channel: sent record detail \""
                                     + key + "\" --found " + (bean != null));
                         } else if (ACTION_CLEAR_ERRORS.equals(action)) {
                             AppErrorsRecordData.clearAll();
-                            logDebug("Error channel: cleared all records from UI");
+                            logDebug("error records channel: cleared all records from UI");
                         } else if (ACTION_REMOVE_ERROR.equals(action)) {
                             String key = intent.getStringExtra(EXTRA_RECORD_KEY);
                             if (key != null && !key.isEmpty()) {
@@ -542,7 +542,7 @@ public class FrameworkHooker {
                                 if (bean instanceof io.github.vstory.apperrors.bean.AppErrorsInfoBean)
                                     AppErrorsRecordData.remove((io.github.vstory.apperrors.bean.AppErrorsInfoBean) bean);
                             }
-                            logDebug("Error channel: removed one record from UI");
+                            logDebug("error records channel: removed one record from UI");
                         } else if (ACTION_GET_APP_TOTAL.equals(action)) {
                             int total = 0;
                             try {
@@ -602,13 +602,13 @@ public class FrameworkHooker {
                                     return r != null ? r : null;
                                 });
                             }
-                            logDebug("Config channel: refreshed app config template from UI");
+                            logDebug("config sync channel: refreshed config template");
                         } else {
                             // filter 已按 ERROR_CHANNEL_ACTIONS 注册，走到这里说明某条分支没进清单
-                            logError("错误通道收到未注册的 action: " + action);
+                            logError("error records channel: unhandled action " + action);
                         }
                     } catch (Throwable t) {
-                        logError("错误通道处理失败\n  " + t);
+                        logError("error records channel: handle failed\n  " + t);
                     }
                 }
             };
@@ -619,7 +619,7 @@ public class FrameworkHooker {
             else
                 context.registerReceiver(receiver, filter);
             errorChannelReceiver = receiver;
-            logDebug("Error channel registered");
+            logDebug("error records channel: receiver registered");
             errorChannelRetry = 0;
         } catch (Throwable t) {
             errorChannelRegistered = false;
@@ -627,10 +627,10 @@ public class FrameworkHooker {
             boolean amsNotReady = t instanceof NullPointerException
                     && String.valueOf(t.getMessage()).contains("registerReceiverWithFeature");
             if (amsNotReady) {
-                logInfo("错误通道注册推迟：系统服务未就绪（AMS 未 publish，启动早期正常），3s 后自动重试 ("
+                logInfo("error records channel: register deferred (AMS not ready at boot), retry in 3s ("
                         + (errorChannelRetry + 1) + "/" + ERROR_CHANNEL_RETRY_MAX + ")");
             } else {
-                logError("错误通道注册失败\n  " + t);
+                logError("error records channel: register failed\n  " + t);
             }
             if (context != null && errorChannelRetry < ERROR_CHANNEL_RETRY_MAX) {
                 errorChannelRetry++;
@@ -1179,28 +1179,28 @@ public class FrameworkHooker {
 
     private static void hookExecutable(Executable e, String desc, Hooker hooker) {
         if (e == null) {
-            hookSummary.add("  [SKIP] " + desc + "（方法/构造器未找到，Android 版本差异，可忽略）");
+            hookSummary.add("  [SKIP] " + desc + " (not found on this Android version, ignorable)");
             hookSkipCount++;
             return;
         }
         try {
             HookHandle h = module.hook(e).intercept(hooker);
             hookHandles.add(h);
-            hookSummary.add("  [OK]   " + desc);
             hookOkCount++;
         } catch (Throwable t) {
-            hookSummary.add("  [FAIL] " + desc + "  →  " + t);
+            hookSummary.add("  [FAIL] " + desc + "  ->  " + t);
             hookFailCount++;
         }
     }
 
     private static void printHookSummary() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Hook 注册完成：成功 ").append(hookOkCount)
-          .append(" / 跳过 ").append(hookSkipCount)
-          .append(" / 失败 ").append(hookFailCount).append(" 条");
-        if (hookFailCount > 0) {
-            sb.append("：\n");
+        sb.append("hook installed: ").append(hookOkCount)
+          .append(" ok / ").append(hookSkipCount)
+          .append(" skipped / ").append(hookFailCount).append(" failed");
+        // 明细只留跳过/失败：成功项已由计数表达，逐条打印纯属噪音
+        if (hookFailCount > 0 || hookSkipCount > 0) {
+            sb.append(":\n");
             for (String line : hookSummary) sb.append(line).append("\n");
         }
         logInfo(sb.toString().trim());
