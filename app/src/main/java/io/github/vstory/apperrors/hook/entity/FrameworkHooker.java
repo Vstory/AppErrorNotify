@@ -396,6 +396,27 @@ public class FrameworkHooker {
     private static final int ERROR_CHANNEL_RETRY_MAX = 20;
 
     /**
+     * 通道 action 清单，filter 注册与 onReceive 分支的唯一来源。
+     * 2026-11-20 详情与分页两条通道漏在了 filter 之外，请求被 IntentFilter 静默丢弃：
+     * onReceive 一次都没进，UI 只能干等超时，表现为详情白屏、堆栈永远为空。
+     */
+    private static final String[] ERROR_CHANNEL_ACTIONS = {
+            ACTION_GET_ERRORS,
+            ACTION_GET_ERRORS_PAGE,
+            ACTION_GET_ERROR_DETAIL,
+            ACTION_CLEAR_ERRORS,
+            ACTION_REMOVE_ERROR,
+            ACTION_GET_APP_TOTAL,
+            ACTION_GET_LOGS,
+            ACTION_GET_MUTED,
+            ACTION_MUTE_ERROR,
+            ACTION_UNMUTE_ERROR,
+            ACTION_UNMUTE_ALL,
+            ACTION_RESUME_SUPPRESS,
+            AppErrorsConfigData.ACTION_CONFIG_CHANGED,
+    };
+
+    /**
      * 回传记录：摘要模式正常远小于事务上限；万一仍超限，对数切半重发，而不是让 system_server 抛
      * TransactionTooLargeException。切到 1 条仍失败即放弃（UI 侧有自己的超时兜底）。
      */
@@ -541,6 +562,9 @@ public class FrameworkHooker {
                                 });
                             }
                             logDebug("Config channel: refreshed app config template from UI");
+                        } else {
+                            // filter 已按 ERROR_CHANNEL_ACTIONS 注册，走到这里说明某条分支没进清单
+                            logError("错误通道收到未注册的 action: " + action);
                         }
                     } catch (Throwable t) {
                         logError("错误通道处理失败\n  " + t);
@@ -548,17 +572,7 @@ public class FrameworkHooker {
                 }
             };
             IntentFilter filter = new IntentFilter();
-            filter.addAction(ACTION_GET_ERRORS);
-            filter.addAction(ACTION_CLEAR_ERRORS);
-            filter.addAction(ACTION_REMOVE_ERROR);
-            filter.addAction(ACTION_GET_APP_TOTAL);
-            filter.addAction(ACTION_GET_LOGS);
-            filter.addAction(ACTION_GET_MUTED);
-            filter.addAction(ACTION_MUTE_ERROR);
-            filter.addAction(ACTION_UNMUTE_ERROR);
-            filter.addAction(ACTION_UNMUTE_ALL);
-            filter.addAction(ACTION_RESUME_SUPPRESS);
-            filter.addAction(AppErrorsConfigData.ACTION_CONFIG_CHANGED);
+            for (String channelAction : ERROR_CHANNEL_ACTIONS) filter.addAction(channelAction);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             else
