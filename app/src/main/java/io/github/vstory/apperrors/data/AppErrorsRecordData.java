@@ -17,7 +17,10 @@ import android.util.Log;
 
 import io.github.vstory.apperrors.bean.AppErrorsInfoBean;
 import io.github.vstory.apperrors.utils.factory.FunctionFactoryKt;
+import com.google.gson.ExclusionStrategy;
+import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -43,7 +46,29 @@ public class AppErrorsRecordData {
     /** 历史记录保留上限（条数）：超出后丢弃最旧记录，防止风暴/长期使用让 /data/misc 下 JSON 无限累积 */
     private static final int MAX_RECORDS = 200;
 
-    private static final Gson gson = new Gson();
+    /**
+     * recordKey 只用于进程间定位记录（Intent extras / 广播），不属于磁盘格式。
+     * 用「只作用于序列化」的排除策略而不是 transient 表达这个意图：transient 会被 Java
+     * 原生序列化一并跳过，bean 传到 UI 侧就丢了 key。
+     */
+    private static final Gson gson = new GsonBuilder()
+            .addSerializationExclusionStrategy(new ExclusionStrategy() {
+                @Override
+                public boolean shouldSkipField(FieldAttributes f) {
+                    return "recordKey".equals(f.getName());
+                }
+
+                @Override
+                public boolean shouldSkipClass(Class<?> clazz) {
+                    return false;
+                }
+            })
+            .create();
+
+    /** 只给单测看磁盘 JSON 形状（见 RecordKeySerializationTest） */
+    static Gson gsonForTest() {
+        return gson;
+    }
 
     /** 当前实例 */
     private static Context context;

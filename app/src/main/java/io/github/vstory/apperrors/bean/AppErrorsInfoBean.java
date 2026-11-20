@@ -41,10 +41,13 @@ public class AppErrorsInfoBean implements Serializable {
 
     /**
      * 磁盘文件名，由 system_server 回传摘要时填入，供 UI 按条取回完整记录。
-     * transient 保证不写进 JSON；不在 UI 侧重算文件名，因为 getJsonFileName() 的 SimpleDateFormat
-     * 取 Locale.getDefault()，而 UI 进程有 attachLocale 覆盖，两边算出的字符串可能不一致。
+     * ⚠️ 不能标 transient：bean 随 Intent extras 走 Java 序列化，transient 字段会被一并跳过，
+     * UI 侧拿到的就是 null（2026-11-20 详情页堆栈全空的成因）。不写进磁盘 JSON 由
+     * AppErrorsRecordData 的 Gson「只作用于序列化」排除策略负责。
+     * 不在 UI 侧重算文件名：getJsonFileName() 的 SimpleDateFormat 取 Locale.getDefault()，
+     * 而 UI 进程有 attachLocale 覆盖，两边算出的字符串可能不一致。
      */
-    public transient String recordKey = "";
+    public String recordKey = "";
 
     public AppErrorsInfoBean() {
     }
