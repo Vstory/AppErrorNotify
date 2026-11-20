@@ -358,6 +358,12 @@ public class FrameworkHooker {
 
     static final String ACTION_GET_ERRORS = "io.github.vstory.apperrors.action.GET_ERRORS";
     static final String ACTION_ERRORS_RESULT = "io.github.vstory.apperrors.action.ERRORS_RESULT";
+    static final String ACTION_GET_ERROR_DETAIL = "io.github.vstory.apperrors.action.GET_ERROR_DETAIL";
+    static final String ACTION_ERROR_DETAIL_RESULT = "io.github.vstory.apperrors.action.ERROR_DETAIL_RESULT";
+    static final String EXTRA_RECORD_KEY = "record_key";
+    static final String EXTRA_OFFSET = "offset";
+    static final String EXTRA_LIMIT = "limit";
+    static final String EXTRA_FULL = "full";
     static final String ACTION_CLEAR_ERRORS = "io.github.vstory.apperrors.action.CLEAR_ERRORS";
     static final String ACTION_REMOVE_ERROR = "io.github.vstory.apperrors.action.REMOVE_ERROR";
     static final String EXTRA_ERRORS = "errors";
@@ -388,6 +394,41 @@ public class FrameworkHooker {
 
     private static final int ERROR_CHANNEL_RETRY_MAX = 20;
 
+    /**
+     * 回传记录：摘要模式正常远小于事务上限；万一仍超限，对数切半重发，而不是让 system_server 抛
+     * TransactionTooLargeException。切到 1 条仍失败即放弃（UI 侧有自己的超时兜底）。
+     */
+    private static void sendRecordsResult(Context ctx,
+                                          java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> payload) {
+        java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> data = payload;
+        while (true) {
+            try {
+                Intent result = new Intent(ACTION_ERRORS_RESULT);
+                result.setPackage(BuildConfigWrapper.APPLICATION_ID);
+                result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(data));
+                ctx.sendBroadcast(result);
+                return;
+            } catch (Throwable t) {
+                if (!isTransactionTooLarge(t) || data.size() <= 1) {
+                    logDebug("Error channel: send records failed \"--count " + data.size() + "\" --" + t);
+                    return;
+                }
+                data = new java.util.ArrayList<>(data.subList(0, data.size() / 2));
+                logDebug("Error channel: payload too large, retry with " + data.size() + " records");
+            }
+        }
+    }
+
+    /** Binder 事务超限会被 BinderProxy 包成 RuntimeException，必须沿 cause 链找 */
+    private static boolean isTransactionTooLarge(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof android.os.TransactionTooLargeException) return true;
+            String m = c.getMessage();
+            if (m != null && m.contains("TransactionTooLarge")) return true;
+        }
+        return false;
+    }
+
     public static void registerErrorChannel(Context context) {
         if (errorChannelRegistered) return;
         errorChannelRegistered = true;
@@ -400,20 +441,37 @@ public class FrameworkHooker {
                     try {
                         if (ACTION_GET_ERRORS.equals(action)) {
                             // 热重载会分裂内存态，故每次从磁盘重读，否则 UI 会拉到空列表
-                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> latest =
-                                    AppErrorsRecordData.latestFromFiles();
-                            Intent result = new Intent(ACTION_ERRORS_RESULT);
+                            boolean full = intent.getBooleanExtra(EXTRA_FULL, false);
+                            int offset = intent.getIntExtra(EXTRA_OFFSET, 0);
+                            int limit = intent.getIntExtra(EXTRA_LIMIT, 0);
+                            // 默认只回摘要：完整 bean 的堆栈逐条可达几十 KB，200 条累加必撑爆 Binder 事务
+                            // （system_server 里抛 TransactionTooLargeException 代价极大），完整记录走详情/分页
+                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> payload = full
+                                    ? AppErrorsRecordData.fullPageFromFiles(offset, limit)
+                                    : AppErrorsRecordData.summaryListFromFiles();
+                            sendRecordsResult(ctx, payload);
+                            logDebug("Error channel: sent " + payload.size() + " records to UI --full " + full);
+                        } else if (ACTION_GET_ERROR_DETAIL.equals(action)) {
+                            String key = intent.getStringExtra(EXTRA_RECORD_KEY);
+                            io.github.vstory.apperrors.bean.AppErrorsInfoBean bean = AppErrorsRecordData.findByKey(key);
+                            Intent result = new Intent(ACTION_ERROR_DETAIL_RESULT);
                             result.setPackage(BuildConfigWrapper.APPLICATION_ID);
-                            result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(latest));
+                            if (bean != null) result.putExtra(EXTRA_BEAN, bean);
                             ctx.sendBroadcast(result);
-                            logDebug("Error channel: sent " + latest.size() + " records to UI");
+                            logDebug("Error channel: sent record detail \""
+                                    + key + "\" --found " + (bean != null));
                         } else if (ACTION_CLEAR_ERRORS.equals(action)) {
                             AppErrorsRecordData.clearAll();
                             logDebug("Error channel: cleared all records from UI");
                         } else if (ACTION_REMOVE_ERROR.equals(action)) {
-                            Object bean = FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_BEAN);
-                            if (bean instanceof io.github.vstory.apperrors.bean.AppErrorsInfoBean)
-                                AppErrorsRecordData.remove((io.github.vstory.apperrors.bean.AppErrorsInfoBean) bean);
+                            String key = intent.getStringExtra(EXTRA_RECORD_KEY);
+                            if (key != null && !key.isEmpty()) {
+                                AppErrorsRecordData.removeByKey(key);
+                            } else {
+                                Object bean = FunctionFactoryKt.getSerializableExtraCompat(intent, EXTRA_BEAN);
+                                if (bean instanceof io.github.vstory.apperrors.bean.AppErrorsInfoBean)
+                                    AppErrorsRecordData.remove((io.github.vstory.apperrors.bean.AppErrorsInfoBean) bean);
+                            }
                             logDebug("Error channel: removed one record from UI");
                         } else if (ACTION_GET_APP_TOTAL.equals(action)) {
                             int total = 0;

@@ -366,7 +366,7 @@ public class AppErrorsRecordActivity extends BaseActivity<ActivityAppErrorsRecor
                     dlg.setTitle(LocaleFactoryKt.getLocale().getNotice());
                     dlg.setMsg(LocaleFactoryKt.getLocale().getAreYouSureRemoveRecord());
                     dlg.confirmButton(() -> {
-                        AppErrorsRecordData.requestRemove(this, bean);
+                        AppErrorsRecordData.requestRemove(this, bean.recordKey);
                         refreshData();
                     });
                     dlg.cancelButton();

@@ -709,11 +709,30 @@ public class AppErrorsRecordData {
         }
     }
 
+    /** 按磁盘文件名删除单条记录（UI 回传的是摘要 bean，只能靠文件名定位） */
+    public static void removeByKey(String key) {
+        if (key == null || key.isEmpty()) return;
+        File folder = errorsInfoDataFolder();
+        if (folder == null) return;
+        File file = new File(folder, key);
+        if (!key.equals(file.getName())) return;
+        for (AppErrorsInfoBean b : allData) {
+            if (key.equals(b.recordKey)) {
+                allData.remove(b);
+                break;
+            }
+        }
+        try {
+            file.delete();
+        } catch (Throwable ignored) {
+        }
+    }
+
     /** 请求 system_server 移除指定记录 */
-    public static void requestRemove(android.content.Context context, AppErrorsInfoBean bean) {
+    public static void requestRemove(android.content.Context context, String recordKey) {
         try {
             android.content.Intent req = new android.content.Intent("io.github.vstory.apperrors.action.REMOVE_ERROR");
-            req.putExtra("bean", bean);
+            req.putExtra("record_key", recordKey);
             context.sendBroadcast(req);
         } catch (Throwable t) {
             log("Request remove failed", t);
