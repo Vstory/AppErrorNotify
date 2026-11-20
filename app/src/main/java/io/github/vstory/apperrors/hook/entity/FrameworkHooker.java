@@ -1134,7 +1134,7 @@ public class FrameworkHooker {
         String pkg = d.packageName();
         String crashKind = d.isRepeatingCrash() ? "keeps stopping" : "has stopped";
         StringBuilder sb = new StringBuilder();
-        sb.append("崩溃报告: \"").append(pkg).append("\" ").append(crashKind);
+        sb.append("Crash report: \"").append(pkg).append("\" ").append(crashKind);
         sb.append("\n  pid:      ").append(d.pid());
         if (!pkg.equals(d.processName())) {
             sb.append("\n  process:  \"").append(d.processName()).append("\"");
@@ -1213,7 +1213,7 @@ public class FrameworkHooker {
             Method hasCrashDialogs = methodOfParamCount(controllerClazz, "hasCrashDialogs", 0);
             hookExecutable(hasCrashDialogs, "ErrorDialogController#hasCrashDialogs() -> true", chain -> true);
             Constructor<?> ctor = constructorOfParamCount(controllerClazz, 1);
-            hookExecutable(ctor, "ErrorDialogController.<init>(1) -> 清空 mCrashDialogs", chain -> {
+            hookExecutable(ctor, "ErrorDialogController.<init>(1) -> clear mCrashDialogs", chain -> {
                 Object result = chain.proceed();
                 Object obj = chain.getThisObject();
                 if (obj != null) setField(obj, "mCrashDialogs", Collections.emptyList());
@@ -1248,7 +1248,7 @@ public class FrameworkHooker {
         });
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
             Method m = methodOfParamCount(AppErrorsClass(), "handleAppCrashLSPB", 6);
-            hookExecutable(m, "AppErrors#handleAppCrashLSPB(6) -> 自定义崩溃 UI", chain -> {
+            hookExecutable(m, "AppErrors#handleAppCrashLSPB(6) -> custom crash UI", chain -> {
                     Object result = chain.proceed();
                     Object arg1 = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
                     if (arg1 instanceof String && "user-terminated".equals(arg1)) return result;
@@ -1269,7 +1269,7 @@ public class FrameworkHooker {
                 });
         } else {
             Method m = methodOf(AppErrorsClass(), "handleShowAppErrorUi", Message.class);
-            hookExecutable(m, "AppErrors#handleShowAppErrorUi(Message) -> 自定义崩溃 UI (API<=R)", chain -> {
+            hookExecutable(m, "AppErrors#handleShowAppErrorUi(Message) -> custom crash UI (API<=R)", chain -> {
                     Object result = chain.proceed();
                     Object thisObj = chain.getThisObject();
                     Context context = thisObj != null ? (Context) getField(thisObj, "mContext") : null;
@@ -1285,7 +1285,7 @@ public class FrameworkHooker {
                 });
         }
         Method handleAppCrashInActivityController = methodOfParamCount(AppErrorsClass(), "handleAppCrashInActivityController", 8);
-        hookExecutable(handleAppCrashInActivityController, "AppErrors#handleAppCrashInActivityController(8) -> 记录崩溃数据", chain -> {
+        hookExecutable(handleAppCrashInActivityController, "AppErrors#handleAppCrashInActivityController(8) -> record crash data", chain -> {
                 Object result = chain.proceed();
                 Object thisObj = chain.getThisObject();
                 Context context = thisObj != null ? (Context) getField(thisObj, "mContext") : null;
