@@ -360,10 +360,11 @@ public class FrameworkHooker {
     static final String ACTION_ERRORS_RESULT = "io.github.vstory.apperrors.action.ERRORS_RESULT";
     static final String ACTION_GET_ERROR_DETAIL = "io.github.vstory.apperrors.action.GET_ERROR_DETAIL";
     static final String ACTION_ERROR_DETAIL_RESULT = "io.github.vstory.apperrors.action.ERROR_DETAIL_RESULT";
+    static final String ACTION_GET_ERRORS_PAGE = "io.github.vstory.apperrors.action.GET_ERRORS_PAGE";
+    static final String ACTION_ERRORS_PAGE_RESULT = "io.github.vstory.apperrors.action.ERRORS_PAGE_RESULT";
     static final String EXTRA_RECORD_KEY = "record_key";
     static final String EXTRA_OFFSET = "offset";
     static final String EXTRA_LIMIT = "limit";
-    static final String EXTRA_FULL = "full";
     static final String ACTION_CLEAR_ERRORS = "io.github.vstory.apperrors.action.CLEAR_ERRORS";
     static final String ACTION_REMOVE_ERROR = "io.github.vstory.apperrors.action.REMOVE_ERROR";
     static final String EXTRA_ERRORS = "errors";
@@ -441,16 +442,23 @@ public class FrameworkHooker {
                     try {
                         if (ACTION_GET_ERRORS.equals(action)) {
                             // 热重载会分裂内存态，故每次从磁盘重读，否则 UI 会拉到空列表
-                            boolean full = intent.getBooleanExtra(EXTRA_FULL, false);
-                            int offset = intent.getIntExtra(EXTRA_OFFSET, 0);
-                            int limit = intent.getIntExtra(EXTRA_LIMIT, 0);
-                            // 默认只回摘要：完整 bean 的堆栈逐条可达几十 KB，200 条累加必撑爆 Binder 事务
+                            // 只回摘要：完整 bean 的堆栈逐条可达几十 KB，200 条累加必撑爆 Binder 事务
                             // （system_server 里抛 TransactionTooLargeException 代价极大），完整记录走详情/分页
-                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> payload = full
-                                    ? AppErrorsRecordData.fullPageFromFiles(offset, limit)
-                                    : AppErrorsRecordData.summaryListFromFiles();
+                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> payload =
+                                    AppErrorsRecordData.summaryListFromFiles();
                             sendRecordsResult(ctx, payload);
-                            logDebug("Error channel: sent " + payload.size() + " records to UI --full " + full);
+                            logDebug("Error channel: sent " + payload.size() + " summaries to UI");
+                        } else if (ACTION_GET_ERRORS_PAGE.equals(action)) {
+                            int offset = Math.max(intent.getIntExtra(EXTRA_OFFSET, 0), 0);
+                            // 钳一页上限：UI 传 0 或巨值都会把整批记录塞进一次事务
+                            int limit = Math.min(Math.max(intent.getIntExtra(EXTRA_LIMIT, 0), 1), 50);
+                            java.util.List<io.github.vstory.apperrors.bean.AppErrorsInfoBean> page =
+                                    AppErrorsRecordData.fullPageFromFiles(offset, limit);
+                            Intent result = new Intent(ACTION_ERRORS_PAGE_RESULT);
+                            result.setPackage(BuildConfigWrapper.APPLICATION_ID);
+                            result.putExtra(EXTRA_ERRORS, new java.util.ArrayList<>(page));
+                            ctx.sendBroadcast(result);
+                            logDebug("Error channel: sent " + page.size() + " full records to UI --offset " + offset);
                         } else if (ACTION_GET_ERROR_DETAIL.equals(action)) {
                             String key = intent.getStringExtra(EXTRA_RECORD_KEY);
                             io.github.vstory.apperrors.bean.AppErrorsInfoBean bean = AppErrorsRecordData.findByKey(key);

@@ -603,12 +603,14 @@ public class AppErrorsRecordData {
 
     private static final String ACTION_GET_ERRORS = "io.github.vstory.apperrors.action.GET_ERRORS";
     private static final String ACTION_ERRORS_RESULT = "io.github.vstory.apperrors.action.ERRORS_RESULT";
+    // 分页走独立 action：列表刷新与导出可能同时在跑，共用一个回传会互相收到对方的结果
+    private static final String ACTION_GET_ERRORS_PAGE = "io.github.vstory.apperrors.action.GET_ERRORS_PAGE";
+    private static final String ACTION_ERRORS_PAGE_RESULT = "io.github.vstory.apperrors.action.ERRORS_PAGE_RESULT";
     private static final String ACTION_GET_ERROR_DETAIL = "io.github.vstory.apperrors.action.GET_ERROR_DETAIL";
     private static final String ACTION_ERROR_DETAIL_RESULT = "io.github.vstory.apperrors.action.ERROR_DETAIL_RESULT";
     private static final String EXTRA_RECORD_KEY = "record_key";
     private static final String EXTRA_OFFSET = "offset";
     private static final String EXTRA_LIMIT = "limit";
-    private static final String EXTRA_FULL = "full";
 
     /** 单次请求-回传回调；超时或通道异常时 intent 为 null */
     public interface RequestCallback {
@@ -628,10 +630,9 @@ public class AppErrorsRecordData {
     /** UI 侧：分页取完整记录（导出全部用，一次一页避免超 Binder 事务） */
     public static void fetchFullPage(android.content.Context context, final int offset, final int limit,
                                      RequestCallback callback) {
-        requestOnce(context, ACTION_GET_ERRORS, ACTION_ERRORS_RESULT, req -> {
+        requestOnce(context, ACTION_GET_ERRORS_PAGE, ACTION_ERRORS_PAGE_RESULT, req -> {
             req.putExtra(EXTRA_OFFSET, offset);
             req.putExtra(EXTRA_LIMIT, limit);
-            req.putExtra(EXTRA_FULL, true);
         }, callback);
     }
 
