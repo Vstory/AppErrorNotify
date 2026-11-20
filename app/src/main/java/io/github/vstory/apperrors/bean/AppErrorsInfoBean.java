@@ -39,6 +39,13 @@ public class AppErrorsInfoBean implements Serializable {
     @SerializedName("isBackgroundCrash") public boolean isBackgroundCrash = false;
     @SerializedName("timestamp") public long timestamp = -1L;
 
+    /**
+     * 磁盘文件名，由 system_server 回传摘要时填入，供 UI 按条取回完整记录。
+     * transient 保证不写进 JSON；不在 UI 侧重算文件名，因为 getJsonFileName() 的 SimpleDateFormat
+     * 取 Locale.getDefault()，而 UI 进程有 attachLocale 覆盖，两边算出的字符串可能不一致。
+     */
+    public transient String recordKey = "";
+
     public AppErrorsInfoBean() {
     }
 
