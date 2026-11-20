@@ -100,12 +100,13 @@ public class HookEntry extends XposedModule {
         } catch (Throwable t) {
             log(Log.ERROR, TAG, "onHotReloaded 重装 hook 异常\n  " + t, t);
         }
-        // 热重载重置了 static：恢复广播标志与记录存储，否则通道/记录会分裂
+        // 热重载重置了 static 且不重放 onSystemServerStarting：记录存储与通道都要在这里重建；
+        // 旧 receiver 已在 onHotReloading 注销，此刻注册才能把新 filter 装上
         try {
-            FrameworkHooker.restoreBroadcastChannelRegistered();
             android.content.Context sysCtx = FrameworkHooker.getSystemServerContext();
             if (sysCtx != null) {
                 AppErrorsRecordData.init(sysCtx);
+                FrameworkHooker.registerExternalCallbacks(sysCtx);
             }
         } catch (Throwable t) {
             log(Log.ERROR, TAG, "HotReloaded 状态恢复跳过\n  " + t, t);

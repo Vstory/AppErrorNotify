@@ -387,10 +387,6 @@ public class FrameworkHooker {
     private static volatile BroadcastReceiver errorChannelReceiver;
     private static volatile BroadcastReceiver lifecycleReceiver;
 
-    public static void restoreBroadcastChannelRegistered() {
-        errorChannelRegistered = true;
-    }
-
     public static boolean isBroadcastChannelRegistered() {
         return errorChannelRegistered;
     }
@@ -426,6 +422,16 @@ public class FrameworkHooker {
         errorChannelRegistered = false;
         errorChannelRetry = 0;
         logDebug("external callbacks unregistered for hot reload");
+    }
+
+    /**
+     * 注册模块到 system_server 的 external callbacks。
+     * 冷启动走 ensureHostContext，热重载后 static 已复位且框架不重放 onSystemServerStarting，
+     * 必须在新代码里重新调用一次，否则新 filter 永远不会装上。
+     */
+    public static void registerExternalCallbacks(Context context) {
+        registerErrorChannel(context);
+        registerLifecycle(context);
     }
 
     private static final int ERROR_CHANNEL_RETRY_MAX = 20;
@@ -637,6 +643,7 @@ public class FrameworkHooker {
     private static int errorChannelRetry = 0;
 
     private static void registerLifecycle(Context context) {
+        if (lifecycleReceiver != null) return;
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context ctx, Intent intent) {
