@@ -186,7 +186,10 @@ public class AppErrorsRecordData {
                 try {
                     String json = readFile(f);
                     AppErrorsInfoBean bean = gson.fromJson(json, AppErrorsInfoBean.class);
-                    if (bean != null) result.add(bean);
+                    if (bean != null) {
+                        bean.recordKey = f.getName();
+                        result.add(bean);
+                    }
                 } catch (Throwable ignored) {
                 }
             }
@@ -227,6 +230,92 @@ public class AppErrorsRecordData {
      *     读磁盘文件可避开分裂的内存态，保证任何 receiver 都能拿到最新崩溃记录 */
     public static java.util.List<AppErrorsInfoBean> latestFromFiles() {
         return new java.util.ArrayList<>(readAllDataFromFiles());
+    }
+
+    /** 摘要字段上限：列表回传只带这些，堆栈等大字段走详情/分页通道单取 */
+    private static final int SUMMARY_MESSAGE_MAX = 512;
+    private static final int SUMMARY_ACTIVITY_MAX = 256;
+
+    /**
+     * 供广播回传的摘要列表：剥离 stackTrace（单条可达几十 KB，200 条累加必然撑爆 Binder 事务），
+     * 其余列表渲染所需字段全保留。完整记录由 {@link #findByKey(String)} / {@link #fullPageFromFiles} 单取。
+     */
+    public static java.util.List<AppErrorsInfoBean> summaryListFromFiles() {
+        java.util.List<AppErrorsInfoBean> out = new java.util.ArrayList<>();
+        for (AppErrorsInfoBean bean : latestFromFiles()) out.add(toSummary(bean));
+        return out;
+    }
+
+    /** 分页读完整记录：只解析本页涉及的文件，导出时避免一次解析全部 */
+    public static java.util.List<AppErrorsInfoBean> fullPageFromFiles(int offset, int limit) {
+        java.util.List<AppErrorsInfoBean> out = new java.util.ArrayList<>();
+        List<File> files = errorsInfoDataFiles();
+        int from = Math.max(offset, 0);
+        int to = limit <= 0 ? files.size() : Math.min(files.size(), from + limit);
+        for (int i = from; i < to; i++) {
+            File f = files.get(i);
+            try {
+                String json = readFile(f);
+                if (json == null) continue;
+                AppErrorsInfoBean bean = gson.fromJson(json, AppErrorsInfoBean.class);
+                if (bean != null) {
+                    bean.recordKey = f.getName();
+                    out.add(bean);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return out;
+    }
+
+    /** 按磁盘文件名取单条完整记录 */
+    public static AppErrorsInfoBean findByKey(String key) {
+        if (key == null || key.isEmpty()) return null;
+        File folder = errorsInfoDataFolder();
+        if (folder == null) return null;
+        File file = new File(folder, key);
+        // 只认同目录下的裸文件名，挡掉 ../ 之类的路径穿越
+        if (!key.equals(file.getName()) || !file.isFile()) return null;
+        try {
+            String json = readFile(file);
+            if (json == null) return null;
+            AppErrorsInfoBean bean = gson.fromJson(json, AppErrorsInfoBean.class);
+            if (bean != null) bean.recordKey = file.getName();
+            return bean;
+        } catch (Throwable t) {
+            log("Read one app errors record failed", t);
+            return null;
+        }
+    }
+
+    private static AppErrorsInfoBean toSummary(AppErrorsInfoBean src) {
+        AppErrorsInfoBean s = new AppErrorsInfoBean();
+        s.pid = src.pid;
+        s.userId = src.userId;
+        s.cpuAbi = src.cpuAbi;
+        s.packageName = src.packageName;
+        s.versionName = src.versionName;
+        s.versionCode = src.versionCode;
+        s.targetSdk = src.targetSdk;
+        s.minSdk = src.minSdk;
+        s.isNativeCrash = src.isNativeCrash;
+        s.exceptionClassName = src.exceptionClassName;
+        s.exceptionMessage = clamp(src.exceptionMessage, SUMMARY_MESSAGE_MAX);
+        s.throwFileName = src.throwFileName;
+        s.throwClassName = src.throwClassName;
+        s.throwMethodName = src.throwMethodName;
+        s.throwLineNumber = src.throwLineNumber;
+        s.stackTrace = "";
+        s.runningActivity = clamp(src.runningActivity, SUMMARY_ACTIVITY_MAX);
+        s.isBackgroundCrash = src.isBackgroundCrash;
+        s.timestamp = src.timestamp;
+        s.recordKey = src.recordKey;
+        return s;
+    }
+
+    private static String clamp(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max);
     }
 
     /** system_server 初始化（首次 hook 拿到 Context 后；建固定目录并按需迁移旧随机目录） */
@@ -508,6 +597,104 @@ public class AppErrorsRecordData {
             log("Fetch app total from system server failed", t);
             if (callback != null) callback.accept(-1);
         }
+    }
+
+    // ===== UI → system_server 一次性请求（详情 / 分页完整记录） =====
+
+    private static final String ACTION_GET_ERRORS = "io.github.vstory.apperrors.action.GET_ERRORS";
+    private static final String ACTION_ERRORS_RESULT = "io.github.vstory.apperrors.action.ERRORS_RESULT";
+    private static final String ACTION_GET_ERROR_DETAIL = "io.github.vstory.apperrors.action.GET_ERROR_DETAIL";
+    private static final String ACTION_ERROR_DETAIL_RESULT = "io.github.vstory.apperrors.action.ERROR_DETAIL_RESULT";
+    private static final String EXTRA_RECORD_KEY = "record_key";
+    private static final String EXTRA_OFFSET = "offset";
+    private static final String EXTRA_LIMIT = "limit";
+    private static final String EXTRA_FULL = "full";
+
+    /** 单次请求-回传回调；超时或通道异常时 intent 为 null */
+    public interface RequestCallback {
+        void onResult(android.content.Context context, android.content.Intent intent);
+    }
+
+    /** 单次请求等待上限（ms）：详情与分页都是用户可见操作，超时即失败、不静默重试 */
+    private static final long ONESHOT_TIMEOUT_MS = 3000L;
+
+    /** UI 侧：按 recordKey 取单条完整记录 */
+    public static void requestErrorDetail(android.content.Context context, final String recordKey,
+                                         RequestCallback callback) {
+        requestOnce(context, ACTION_GET_ERROR_DETAIL, ACTION_ERROR_DETAIL_RESULT,
+                req -> req.putExtra(EXTRA_RECORD_KEY, recordKey), callback);
+    }
+
+    /** UI 侧：分页取完整记录（导出全部用，一次一页避免超 Binder 事务） */
+    public static void fetchFullPage(android.content.Context context, final int offset, final int limit,
+                                     RequestCallback callback) {
+        requestOnce(context, ACTION_GET_ERRORS, ACTION_ERRORS_RESULT, req -> {
+            req.putExtra(EXTRA_OFFSET, offset);
+            req.putExtra(EXTRA_LIMIT, limit);
+            req.putExtra(EXTRA_FULL, true);
+        }, callback);
+    }
+
+    private static void requestOnce(final android.content.Context context, String requestAction, String resultAction,
+                                    java.util.function.Consumer<android.content.Intent> filler,
+                                    final RequestCallback callback) {
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final boolean[] done = {false};
+        final android.content.BroadcastReceiver[] holder = new android.content.BroadcastReceiver[1];
+        final Runnable timeoutTask = () -> {
+            if (done[0]) return;
+            done[0] = true;
+            try { if (holder[0] != null) context.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+            if (callback != null) callback.onResult(context, null);
+        };
+        try {
+            android.content.IntentFilter filter = new android.content.IntentFilter();
+            filter.addAction(resultAction);
+            android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                    if (done[0]) return;
+                    done[0] = true;
+                    handler.removeCallbacks(timeoutTask);
+                    try { ctx.unregisterReceiver(holder[0]); } catch (Throwable ignored) {}
+                    if (callback != null) callback.onResult(ctx, intent);
+                }
+            };
+            holder[0] = receiver;
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+            else
+                context.registerReceiver(receiver, filter);
+            handler.postDelayed(timeoutTask, ONESHOT_TIMEOUT_MS);
+            android.content.Intent request = new android.content.Intent(requestAction);
+            if (filler != null) filler.accept(request);
+            // 不能 setPackage：system_server 里的动态 receiver 不属于本包
+            context.sendBroadcast(request);
+        } catch (Throwable t) {
+            log("Request " + requestAction + " failed", t);
+            if (!done[0]) {
+                done[0] = true;
+                handler.removeCallbacks(timeoutTask);
+                if (callback != null) callback.onResult(context, null);
+            }
+        }
+    }
+
+    /** 从详情回传 intent 取完整记录（失败为 null） */
+    public static AppErrorsInfoBean beanFromResult(android.content.Intent intent) {
+        if (intent == null) return null;
+        Object extra = FunctionFactoryKt.getSerializableExtraCompat(intent, "bean");
+        return extra instanceof AppErrorsInfoBean ? (AppErrorsInfoBean) extra : null;
+    }
+
+    /** 从列表/分页回传 intent 取记录数组（失败为空表） */
+    public static java.util.List<AppErrorsInfoBean> listFromResult(android.content.Intent intent) {
+        java.util.List<AppErrorsInfoBean> out = new java.util.ArrayList<>();
+        if (intent == null) return out;
+        Object extra = FunctionFactoryKt.getSerializableExtraCompat(intent, "errors");
+        if (!(extra instanceof java.util.List)) return out;
+        for (Object o : (java.util.List<?>) extra) if (o instanceof AppErrorsInfoBean) out.add((AppErrorsInfoBean) o);
+        return out;
     }
 
     // ===== UI → system_server 操作广播（clear / remove 需在 system_server 侧执行） =====
