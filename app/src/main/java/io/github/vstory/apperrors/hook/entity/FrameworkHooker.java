@@ -350,7 +350,7 @@ public class FrameworkHooker {
         try {
             AppErrorsRecordData.init(context);
         } catch (Throwable t) {
-            logError("异常记录数据初始化失败\n  " + t, t);
+            logError("error records init failed\n  " + t, t);
         }
         registerLifecycle(context);
         registerErrorChannel(context);
@@ -785,7 +785,7 @@ public class FrameworkHooker {
                 return null;
             }
             if (!(Boolean) hasVisible) {
-                logDebug("⑥ capture: no visible activity -> 后台");
+                logDebug("⑥ capture: no visible activity -> background");
                 return "";
             }
             Object acts = getField(wpc, "mActivities");
@@ -809,9 +809,9 @@ public class FrameworkHooker {
                         return name;
                     }
                 }
-                logDebug("⑥ capture: visible flag set but no ActivityRecord name resolved -> 后台");
+                logDebug("⑥ capture: visible flag set but no ActivityRecord name resolved -> background");
             } else {
-                logDebug("⑥ capture: mActivities not a List -> 后台");
+                logDebug("⑥ capture: mActivities not a List -> background");
             }
             return "";
         } catch (Throwable t) {
@@ -902,7 +902,7 @@ public class FrameworkHooker {
             logInfo("Burst suppress: force-stopped \"" + pkg + "\" via " + m.getName()
                     + " (userId=" + userId + ") to stop the crash storm");
         } catch (Throwable t) {
-            logError("force-stop 崩溃源失败\n  " + t);
+            logError("force-stop of crash source failed\n  " + t);
         }
     }
 
@@ -945,7 +945,7 @@ public class FrameworkHooker {
                     .setDefaults(0);
             manager.notify(pkg, SUPPRESS_NOTICE_ID, builder.build());
         } catch (Throwable t) {
-            logError("发送抑制说明通知失败\n  " + t);
+            logError("failed to post suppression notice\n  " + t);
         }
     }
 
@@ -999,7 +999,7 @@ public class FrameworkHooker {
 
         if (BuildConfigWrapper.APPLICATION_ID.equals(d.packageName())) {
             FunctionFactoryKt.toast(context, "AppErrorNotify has crashed, please see the log in console");
-            logError("AppErrorNotify 自身崩溃\n  详见控制台 Android Runtime Exception");
+            logError("AppErrorNotify crashed itself\n  see Android Runtime Exception on console");
         } else if (!ConfigData.isEnableAppConfigTemplate()) {
             sendCrashNotification(context, d, appName, errorTitle);
         } else {
@@ -1097,7 +1097,7 @@ public class FrameworkHooker {
                 postSuppressNotice(context, d.packageName(), appName);
             }
         } catch (Throwable t) {
-            logError("发送崩溃通知失败\n  " + t);
+            logError("failed to post crash notification\n  " + t);
         }
     }
 
@@ -1172,7 +1172,7 @@ public class FrameworkHooker {
         try {
             onHook();
         } catch (Throwable t) {
-            logError("hook 注册整体异常，部分 hook 可能未注册\n  " + t, t);
+            logError("hook registration aborted, some hooks may be missing\n  " + t, t);
             printHookSummary();
         }
     }
