@@ -304,12 +304,19 @@ jobs:
           grep -h "<testsuite " app/build/test-results/testDebugUnitTest/*.xml
 
       - name: Gradle build
+        env:
+          CHANNEL: ${{ steps.target.outputs.channel }}
+          SHORT: ${{ steps.info.outputs.short }}
         run: |
           chmod +x gradlew
           # 只构建 release：本项目构建层**不分 debug/release**（见 build.sh 头注释）——
           #   调试日志由 UI 开关 ConfigData.isEnableDebug 运行时控制，Debug.d 调用在正式包里永不裁剪；
           #   产物统一命名，无 _debug/_release 后缀。不要套用其它模块的产物后缀判定。
-          ./gradlew --no-daemon :app:assembleRelease
+          # ci 渠道额外把渠道+提交短号写进 APK 内 versionName（1.18+ci.3766c3f），
+          #   否则并装多个 ci 包时系统「应用信息」里分不出是哪个提交；release 保持纯版本号。
+          SUFFIX=""
+          if [ "$CHANNEL" = "ci" ]; then SUFFIX="-PappVersionSuffix=ci.${SHORT}"; fi
+          ./gradlew --no-daemon :app:assembleRelease $SUFFIX
           ls -la app/build/outputs/apk/release
 
       # 只落盘 + 自检：产物名由 Resolve release target and APK name 按渠道算出（命名规则的唯一来源）。
@@ -351,6 +358,9 @@ jobs:
       #   这一串全是**静默失败模式**（包照样装、照样跑，只是模块不生效或用户拿到的版本不对），
       #   故必须做成门禁而不是「发布前看一眼」。
       - name: Verify APK (xposed files + signature + version + locales)
+        env:
+          CHANNEL: ${{ steps.target.outputs.channel }}
+          SHORT: ${{ steps.info.outputs.short }}
         run: |
           APKSIGNER="$(command -v apksigner || true)"
           [ -n "$APKSIGNER" ] || APKSIGNER="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
@@ -393,9 +403,13 @@ jobs:
           [ -n "$PKG_LINE" ] || { echo "::error::$NAME 读不到 badging 的 package 行"; exit 1; }
           printf '%s' "$PKG_LINE" | grep -q "versionCode='${CODE}'" \
             || { echo "::error::$NAME 的 versionCode 与源码不符（期望 ${CODE}）：$PKG_LINE"; exit 1; }
-          printf '%s' "$PKG_LINE" | grep -q "versionName='${VER}'" \
-            || { echo "::error::$NAME 的 versionName 与源码不符（期望 ${VER}）：$PKG_LINE"; exit 1; }
-          echo "  ✅ 版本号与源码一致：${VER}(${CODE})"
+          # ci 包的 versionName 带渠道与提交短号（1.18+ci.3766c3f，见 build.gradle.kts 的
+          #   appVersionSuffix），release 渠道是纯版本号 —— 期望值必须跟渠道走，否则 ci 必红
+          EXPECT_VN="${VER}"
+          if [ "${CHANNEL}" = "ci" ]; then EXPECT_VN="${VER}+ci.${SHORT}"; fi
+          printf '%s' "$PKG_LINE" | grep -q "versionName='${EXPECT_VN}'" \
+            || { echo "::error::$NAME 的 versionName 与源码不符（期望 ${EXPECT_VN}）：$PKG_LINE"; exit 1; }
+          echo "  ✅ 版本号与源码一致：${EXPECT_VN}(${CODE})"
 
           # ④ 语言裁剪未回归。
           #    本项目 localeFilters 踩过两次坑（写 "zh" 匹配不到 values-zh-rCN ⇒ 中文整个消失；
