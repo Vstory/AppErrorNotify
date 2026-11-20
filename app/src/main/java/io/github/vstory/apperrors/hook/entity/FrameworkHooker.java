@@ -384,6 +384,8 @@ public class FrameworkHooker {
     static final String EXTRA_PACKAGE = MutedErrorsData.EXTRA_PACKAGE;
 
     private static volatile boolean errorChannelRegistered = false;
+    private static volatile BroadcastReceiver errorChannelReceiver;
+    private static volatile BroadcastReceiver lifecycleReceiver;
 
     public static void restoreBroadcastChannelRegistered() {
         errorChannelRegistered = true;
@@ -391,6 +393,39 @@ public class FrameworkHooker {
 
     public static boolean isBroadcastChannelRegistered() {
         return errorChannelRegistered;
+    }
+
+    /**
+     * 热重载前注销注册到 system_server 的 external callbacks。
+     * API 102 要求 onHotReloading 返回 true 之前完成注销：不注销则旧 filter 与旧 onReceive
+     * 永久驻留，改 ERROR_CHANNEL_ACTIONS 后热重载不生效，只能重启进程恢复。
+     */
+    public static void unregisterExternalCallbacks() {
+        Context ctx = getSystemServerContext();
+        // 先摘引用再注销，避免异常路径下把引用留在字段里导致后续重复注销失败
+        BroadcastReceiver errorReceiver = errorChannelReceiver;
+        errorChannelReceiver = null;
+        BroadcastReceiver lifeReceiver = lifecycleReceiver;
+        lifecycleReceiver = null;
+        if (ctx != null) {
+            if (errorReceiver != null) {
+                try {
+                    ctx.unregisterReceiver(errorReceiver);
+                } catch (Throwable t) {
+                    logDebug("unregister error channel skipped: " + t);
+                }
+            }
+            if (lifeReceiver != null) {
+                try {
+                    ctx.unregisterReceiver(lifeReceiver);
+                } catch (Throwable t) {
+                    logDebug("unregister lifecycle skipped: " + t);
+                }
+            }
+        }
+        errorChannelRegistered = false;
+        errorChannelRetry = 0;
+        logDebug("external callbacks unregistered for hot reload");
     }
 
     private static final int ERROR_CHANNEL_RETRY_MAX = 20;
@@ -577,6 +612,7 @@ public class FrameworkHooker {
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             else
                 context.registerReceiver(receiver, filter);
+            errorChannelReceiver = receiver;
             logDebug("Error channel registered");
             errorChannelRetry = 0;
         } catch (Throwable t) {
@@ -627,6 +663,7 @@ public class FrameworkHooker {
             context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
         else
             context.registerReceiver(receiver, filter);
+        lifecycleReceiver = receiver;
     }
 
     private static class AppErrorsProcessData {
