@@ -61,6 +61,13 @@ public class HookEntry extends XposedModule {
 
     @Override
     public boolean onHotReloading(HotReloadingParam param) {
+        // 契约要求返回 true 前注销 external callbacks；注销失败也放行，
+        // 否则用户会卡在「热重载永远失败」，比残留一个 receiver 更难恢复
+        try {
+            FrameworkHooker.unregisterExternalCallbacks();
+        } catch (Throwable t) {
+            log(Log.ERROR, TAG, "onHotReloading 注销 external callbacks 失败\n  " + t, t);
+        }
         return true;
     }
 
