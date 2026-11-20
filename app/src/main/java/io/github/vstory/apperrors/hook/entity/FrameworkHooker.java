@@ -1179,7 +1179,7 @@ public class FrameworkHooker {
 
     private static void hookExecutable(Executable e, String desc, Hooker hooker) {
         if (e == null) {
-            hookSummary.add("  [SKIP] " + desc + " (not found on this Android version, ignorable)");
+            hookSummary.add("  [SKIP] " + desc + "  -- not found on this Android version, ignorable");
             hookSkipCount++;
             return;
         }
