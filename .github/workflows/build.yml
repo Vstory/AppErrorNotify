@@ -299,6 +299,9 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :app:testDebugUnitTest
+          # Gradle 在「一条测试都没跑」时同样 BUILD SUCCESSFUL，不把测试数打出来就分不清
+          # 真跑过还是编译后空转；grep 无命中即 FAIL（set -e），空转不能过关
+          grep -h "<testsuite " app/build/test-results/testDebugUnitTest/*.xml
 
       - name: Gradle build
         run: |
