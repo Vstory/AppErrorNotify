@@ -259,7 +259,6 @@ jobs:
           unzip -p "$APK" META-INF/xposed/module.prop | grep -q '^staticScope=true$' \
             || { echo "::error::$NAME 的 module.prop 缺 staticScope=true（作用域需手动勾选）"; exit 1; }
           echo "  ✅ 作用域静态声明有效（scope=$SCOPE）"
-          echo "SCOPE=$SCOPE" >> "$GITHUB_ENV"
 
           BADGING="$("$AAPT2" dump badging "$APK" 2>/dev/null || true)"
 
@@ -317,9 +316,6 @@ jobs:
           done
           echo "  ✅ 签名方案含 v2 + v3"
 
-          echo "CERT_SHA256=$ACTUAL" >> "$GITHUB_ENV"
-          echo "SIGN_SCHEMES=v2+v3" >> "$GITHUB_ENV"
-
       # 正文顶部照搬 Kelivo.F 预发布页那一行（全角空格 + `·` 分隔、标签加粗）。
       # 下方 CHANGELOG 区从旧正文摘出来拼回去 —— 那是人工维护的更新日志，重建正文时不能丢。
       #   摘取规则：从含 `<!-- CHANGELOG:BEGIN` 的那行起到正文结尾，整段原样保留。
@@ -333,8 +329,6 @@ jobs:
           COMMIT: ${{ steps.info.outputs.commit }}
         run: |
           BODY="${GITHUB_WORKSPACE}/pre_release_body.md"
-          BASE="https://github.com/${REPO}/releases/download/${TARGET_TAG}"
-          MB="$(awk -v b="$(stat -c %s "dist/${APK_NAME}")" 'BEGIN{printf "%.1f", b/1048576}')"
 
           # 页已存在则取其正文，把 CHANGELOG 区原样摘出；页不存在（404）或从未加过标记则用空模板
           CHANGELOG=""
@@ -353,22 +347,11 @@ jobs:
             echo "ℹ️ 现有页无更新日志区（或页不存在），写入空模板"
           fi
 
+          # 正文只有两段：顶部元信息行（对齐 Kelivo.F 预发布页），以及人工维护的更新日志区。
+          #   产物信息（大小/签名/作用域/构建来源）不再铺在正文 —— 资产列表本身就能下载，
+          #   这些值只作构建期的门禁断言，不进页面。
           {
             echo "**Commit** [\`${SHORT}\`](https://github.com/${REPO}/commit/${COMMIT})　·　**Branch** ${BRANCH}　·　**Version** ${VER}+ci.${SHORT}（versionCode ${CODE}）"
-            echo
-            echo "| 项 | 值 |"
-            echo "|---|---|"
-            echo "| 产物 | [\`${APK_NAME}\`](${BASE}/${APK_NAME}) |"
-            echo "| 来源分支 | \`${BRANCH}\` |"
-            echo "| 大小 | ${MB} MB |"
-            echo "| 签名 | ${SIGN_SCHEMES:-（未读取到）} · \`${CERT_SHA256:-（未读取到）}\` |"
-            echo "| 作用域 | \`${SCOPE}\`（已在 \`META-INF/xposed/scope.list\` 静态声明，LSPosed 里无需手动勾选） |"
-            echo "| 构建来源 | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
-            echo
-            echo "> [!WARNING]"
-            echo "> **本页为预发布**：签名与正式版同一把固定密钥，可直接覆盖升级。"
-            echo "> 本页 tag 与正式版**同名**（\`${TARGET_TAG}\`）—— **发正式版前请先删除本页**，否则正式版构建会因该版本页已存在而被守卫拒绝。"
-            echo "> 删除时建议连同同名 git tag 一起删：只删页不删 tag 的话，正式版页的 tag 仍指向本次预发布的提交。"
             echo
             echo "${CHANGELOG}"
           } > "$BODY"
