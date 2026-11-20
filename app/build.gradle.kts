@@ -43,7 +43,7 @@ android {
         // 后缀由 ci 渠道用 -PappVersionSuffix 注入，格式对齐 Kelivo.F：1.18+ci.3766c3f。
         //   不加后缀的话并装多个 ci 包时，系统「应用信息」里长得完全一样，分不出是哪个提交。
         versionName = "1.18" + (findProperty("appVersionSuffix")?.let { "+$it" } ?: "")
-        versionCode = 81
+        versionCode = 82
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
