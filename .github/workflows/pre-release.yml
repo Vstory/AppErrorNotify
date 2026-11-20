@@ -100,9 +100,9 @@ jobs:
           echo "short=$(git rev-parse HEAD | cut -c1-8)" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      # 产物名与 tag 在这里定死，后续重命名 / 正文表格 / 上传全部引用它（单一来源）。
-      #   tag 与正式版同形：v<版本>.<code>。重跑同版本改写同一页，故产物名不含时间戳（--clobber 覆盖）。
-      #   预发布包名用 `.pre.apk` 后缀，与正式版的 `.release.apk` 对称，下载到手能一眼分出渠道。
+      # 产物名与 tag 在这里定死，后续重命名 / 上传全部引用它（单一来源）。
+      #   tag 与正式版同形：v<版本>.<code>。包名带构建提交短号 `.ci.<short>.apk`，下载到手能看出一页里是哪个提交打的包。
+      #   代价：同一版本的多次构建名字不同，--clobber 盖不住 ⇒ 上传后必须清掉本页其它 ci 包（见 Publish 步骤）。
       #   ⚠️ 圆括号在 URL 里需转义，而下载链接由资产名拼出 ⇒ 名字里不得出现括号。
       - name: Resolve target and APK name
         id: target
@@ -133,7 +133,7 @@ jobs:
           fi
 
           TAG="v${VER}.${CODE}"
-          APK_NAME="${PREFIX}.${VER}.${CODE}.pre.apk"
+          APK_NAME="${PREFIX}.${VER}.${CODE}.ci.${SHORT}.apk"
           echo "预发布 tag=${TAG}  产物=${APK_NAME}"
           {
             echo "tag=${TAG}"
@@ -214,12 +214,12 @@ jobs:
           cp -- "$SRC" "dist/${APK_NAME}"
           echo "产物: dist/${APK_NAME} ← $SRC"
 
-          # 命名自检（拿实际产出的文件名校验）：正文链接按资产名拼出，改名漏改会静默 404
+          # 命名自检（拿实际产出的文件名校验）：短号多一位少一位都要在这里断掉，别带进发布页
           shopt -s nullglob
           apks=(dist/*.apk)
           [ "${#apks[@]}" -eq 1 ] || { echo "::error::应产出 1 个包，实际 ${#apks[@]} 个"; exit 1; }
           for f in "${apks[@]}"; do
-            printf '%s' "$(basename "$f")" | grep -qE '^[A-Za-z0-9._-]+\.pre\.apk$' \
+            printf '%s' "$(basename "$f")" | grep -qE '^[A-Za-z0-9._-]+\.ci\.[0-9a-f]{8}\.apk$' \
               || { echo "::error::产物名与规则不符（或含空格/括号/百分号等 URL 不友好字符）: $(basename "$f")"; exit 1; }
           done
           echo "✅ 命名自检通过"
@@ -385,6 +385,21 @@ jobs:
           gh release upload "$TARGET_TAG" "dist/${APK_NAME}" --clobber
           echo "已发布：https://github.com/${REPO}/releases/tag/${TARGET_TAG}"
 
+          # 包名带短号 ⇒ 同版本不同提交的包不会互相覆盖，本页会越攒越多，清掉非本次构建的包。
+          #   按 .apk 后缀清而不是按 .ci.* 清：历史遗留的 .pre.apk 也要一并带走，本页只留当前这一个包。
+          #   传完再清（而非先清后传）：上传若失败，页面上至少还留着上一版，不至于空窗。
+          gh api --paginate -H "Accept: application/vnd.github+json" \
+            "repos/${REPO}/releases/tags/${TARGET_TAG}" \
+            --jq '.assets[] | select(.name | endswith(".apk")) | "\(.id) \(.name)"' \
+          | while read -r id name; do
+              [ -n "$id" ] || continue
+              [ "$name" = "$APK_NAME" ] && continue
+              gh api -X DELETE -H "Accept: application/vnd.github+json" \
+                "repos/${REPO}/releases/assets/${id}" >/dev/null \
+                && echo "已清除旧构建产物：${name}" \
+                || echo "::warning::清除旧产物失败（asset id=${id}），本页可能残留旧包"
+            done
+          
           # ⚠️ 不要给 asset 写 label：GitHub 会用 label 顶替文件名显示
           gh api --paginate -H "Accept: application/vnd.github+json" \
             "repos/${REPO}/releases/tags/${TARGET_TAG}" \
