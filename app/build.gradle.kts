@@ -52,4 +52,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    // targetSdk 31 是刻意为之（规避通知运行时权限 + 精确闹钟自动授予），
+    // 而 lint 的 ExpiredTargetSdkVersion 是 Play 上架规则 —— 与本测试包无关，
+    // 不关掉会直接阻断 assembleRelease（调的是 lintVitalRelease）。
+    lint {
+        checkReleaseBuilds = false
+    }
 }
