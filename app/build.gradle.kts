@@ -35,10 +35,11 @@ android {
         minSdk = 26
         // targetSdk 31：避免通知运行时权限 + 自动授予精确闹钟（self-relaunch 风暴必需）
         targetSdk = 31
-        // ciRun 由 CI 注入（github.run_number）：+1000 保证版本号始终大于历史手工值，
-        // 覆盖安装不会被拒；本地构建不带该属性，沿用固定值。
+        // ciRun 由 CI 注入（github.run_number）：+1000 保证 versionCode 单调递增，覆盖安装不被拒。
+        // versionName 的后缀与主仓库同一套（1.1+ci.<提交短号>，见 build.yml 的 -PappVersionSuffix）：
+        //   并装多个 ci 包时靠短号区分是哪个提交，用 run_number 分不出来。
         versionCode = (findProperty("ciRun") as String?)?.toIntOrNull()?.plus(1000) ?: 2
-        versionName = "1.1" + (findProperty("ciRun")?.let { "+ci.$it" } ?: "")
+        versionName = "1.1" + (findProperty("appVersionSuffix")?.let { "+$it" } ?: "")
     }
 
     buildTypes {

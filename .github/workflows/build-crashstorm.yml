@@ -1,7 +1,8 @@
 name: Build CrashStorm
 
-# 独立孤儿分支的测试应用 CI：只负责编译 + 签名 + 发一个滚动测试页。
-# 不碰主应用，与 build.yml 完全独立（两条分支没有共享代码）。
+# 独立孤儿分支的测试应用 CI：只管编译 + 签名 + 发一个滚动测试页，不碰主应用。
+# 版本号、产物命名、发布页与清理都**套用主仓库 build.yml 的同一套规则**，两条 CI 的包看上去是一族：
+#   versionName = 1.1+ci.<提交短号>   产物 = CrashStorm_1.1.<code>_<时间>_ci_<短号>.apk
 on:
   push:
     branches: [crashstorm-test]
@@ -68,15 +69,32 @@ jobs:
           } >> local.properties
           echo "已按固定密钥配置签名"
 
-      # ciRun 让 versionCode 随 run_number 单调递增（gradle 侧 +1000），覆盖安装不被拒。
+      # 短号取提交 SHA 前 8 位、时间取北京时间，两者与主 CI 同名同格式 —— 产物名与正文里的
+      # 「最新构建」时间可跨仓库直接对照。
+      - name: Compute build info
+        id: info
+        run: |
+          echo "short=${GITHUB_SHA:0:8}" >> "$GITHUB_OUTPUT"
+          echo "ts=$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+      # ciRun 让 versionCode 随 run_number 单调递增（gradle 侧 +1000），覆盖安装不被拒；
+      # appVersionSuffix 让 APK 内的 versionName 带上提交短号（与主仓库 build.yml 同一个属性名）。
       - name: Build
+        env:
+          SHORT: ${{ steps.info.outputs.short }}
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon :app:assembleRelease -PciRun=${{ github.run_number }}
+          ./gradlew --no-daemon :app:assembleRelease \
+            -PciRun=${{ github.run_number }} \
+            -PappVersionSuffix=ci.${SHORT}
+          ls -la app/build/outputs/apk/release
 
-      # 两类静默失败：产物没签名（AGP 不报错，只产出 -unsigned.apk）、
-      # versionCode 没随 ciRun 生效（装上去还是旧值 ⇒ 覆盖安装被拒）。
+      # 静默失败三连：产物没签名（AGP 只产出 -unsigned.apk）、版本号没生效、签名不是固定密钥；
+      # 任一都表现为「包能装能跑」，要等覆盖安装或排障时才发现，故一律做成门禁。
       - name: Verify APK
+        id: verify
+        env:
+          SHORT: ${{ steps.info.outputs.short }}
         run: |
           REL=app/build/outputs/apk/release
           if [ -f "$REL/app-release-unsigned.apk" ]; then
@@ -86,35 +104,157 @@ jobs:
           APK="$REL/app-release.apk"
           [ -f "$APK" ] || { echo "::error::未找到产物 $APK"; ls -R "$REL" || true; exit 1; }
 
-          APKSIGNER="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+          APKSIGNER="$(command -v apksigner || true)"
+          [ -n "$APKSIGNER" ] || APKSIGNER="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
           [ -n "$APKSIGNER" ] || { echo "::error::找不到 apksigner，无法断言签名"; exit 1; }
-          "$APKSIGNER" verify --print-certs "$APK" | head -4
-
           AAPT2="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)"
-          [ -n "$AAPT2" ] || { echo "::error::找不到 aapt2"; exit 1; }
+          [ -n "$AAPT2" ] || { echo "::error::找不到 aapt2（用于读版本）"; exit 1; }
+
           BADGING="$("$AAPT2" dump badging "$APK" 2>/dev/null || true)"
           PKG_LINE="$(printf '%s' "$BADGING" | grep -m1 '^package:' || true)"
           [ -n "$PKG_LINE" ] || { echo "::error::读不到 badging 的 package 行"; exit 1; }
           echo "$PKG_LINE"
 
           EXPECT_CODE=$(( ${{ github.run_number }} + 1000 ))
+          # base 版本只从 gradle 读，不在这里再写一份字面量（否则改版本要改三处、必漂）
+          VER="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)"
+          [ -n "$VER" ] || { echo "::error::读不到 versionName（app/build.gradle.kts）"; exit 1; }
+          EXPECT_VN="${VER}+ci.${SHORT}"
           printf '%s' "$PKG_LINE" | grep -q "versionCode='${EXPECT_CODE}'" \
             || { echo "::error::versionCode 与 ciRun 不符（期望 ${EXPECT_CODE}）：$PKG_LINE"; exit 1; }
-          printf '%s' "$PKG_LINE" | grep -q "versionName='1.1+ci.${{ github.run_number }}'" \
-            || { echo "::error::versionName 与 ciRun 不符：$PKG_LINE"; exit 1; }
-          echo "✅ 签名有效、版本号 $EXPECT_CODE 已生效"
+          printf '%s' "$PKG_LINE" | grep -q "versionName='${EXPECT_VN}'" \
+            || { echo "::error::versionName 与提交短号不符（期望 ${EXPECT_VN}）：$PKG_LINE"; exit 1; }
+          echo "  ✅ 版本号：${EXPECT_VN}(${EXPECT_CODE})"
 
+          # 与主仓库同一个常量（同一把固定密钥）。换密钥时必须两边同改。
+          EXPECTED_CERT_SHA256="8D1B6022D3E3BB837A3BA1870E0EEAC8650F9470B8287EDF549DACEC9E9E2A64"
+          OUT="$("$APKSIGNER" verify --print-certs "$APK" 2>&1 || true)"
+          if printf '%s' "$OUT" | grep -qi 'DOES NOT VERIFY\|Missing.*signature\|no signature'; then
+            echo "::error::未通过签名校验 —— 拒绝发布"; printf '%s\n' "$OUT"; exit 1
+          fi
+          DIGEST="$(printf '%s' "$OUT" | sed -nE 's/^.*certificate SHA-256 digest: ([0-9a-fA-F]+).*$/\1/p' | head -1)"
+          [ -n "$DIGEST" ] || { echo "::error::读不到签名证书指纹"; printf '%s\n' "$OUT"; exit 1; }
+          ACTUAL="$(printf '%s' "$DIGEST" | tr -d ':' | tr 'a-f' 'A-F')"
+          if [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::签名指纹与固定密钥不符 —— 拒绝发布"
+            echo "  期望: $EXPECTED_CERT_SHA256"
+            echo "  实际: $ACTUAL"
+            exit 1
+          fi
+          echo "  ✅ 签名指纹与固定密钥一致：$ACTUAL"
+
+          VERBOSE="$("$APKSIGNER" verify --verbose "$APK" 2>&1 || true)"
+          for scheme in v2 v3; do
+            printf '%s' "$VERBOSE" | grep -qE "Verified using ${scheme} scheme.*: true" \
+              || { echo "::error::未启用 ${scheme} 签名方案"; printf '%s\n' "$VERBOSE"; exit 1; }
+          done
+          echo "  ✅ 签名方案含 v2 + v3"
+          echo "cert=$ACTUAL" >> "$GITHUB_OUTPUT"
+
+      # 产物命名套用主仓库规则：<应用名>_<版本>.<code>_<时间>_ci_<短号>.apk
+      #   `ci` 段是渠道标记 —— 测试包与正式包外观几乎一样，下载到手必须一眼认出不是正式包。
+      #   ⚠️ 圆括号/空格在 URL 里需转义，而下载链接由资产名拼出 ⇒ 一律用 `_` / `.` 连接。
       - name: Stage artifact
+        env:
+          SHORT: ${{ steps.info.outputs.short }}
+          TS: ${{ steps.info.outputs.ts }}
         run: |
+          CODE=$(( ${{ github.run_number }} + 1000 ))
+          VER="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)"
+          [ -n "$VER" ] || { echo "::error::读不到 versionName（app/build.gradle.kts）"; exit 1; }
+          APK_NAME="CrashStorm_${VER}.${CODE}_${TS}_ci_${SHORT}.apk"
+
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/CrashStorm-${{ github.run_number }}.apk"
+          cp -- app/build/outputs/apk/release/app-release.apk "dist/${APK_NAME}"
+
+          # 拿实际产出的文件名自检：正文链接与清理都按资产名匹配，改名漏改是静默错
+          printf '%s' "$APK_NAME" | grep -qE '^[A-Za-z0-9._-]+_[0-9]{8}-[0-9]{4}_ci_[0-9a-f]{8}\.apk$' \
+            || { echo "::error::产物名与规则不符: $APK_NAME"; exit 1; }
+          echo "APK_NAME=${APK_NAME}" >> "$GITHUB_ENV"
+          echo "✅ 产物：dist/${APK_NAME}"
           ls -la dist
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: CrashStorm-${{ github.run_number }}
+          name: CrashStorm-${{ steps.info.outputs.ts }}-${{ steps.info.outputs.short }}-${{ github.run_number }}
           path: dist/*.apk
           if-no-files-found: error
+
+      # 正文结构照抄主仓库 ci 页：警示块 + 最新构建直链（GitHub 的 assets 列表固定按上传时间
+      #   旧→新排列且无法调整，故正文第一条就必须是本次产物）+ 历史构建列表。
+      - name: Generate release body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHORT: ${{ steps.info.outputs.short }}
+          TS: ${{ steps.info.outputs.ts }}
+          REPO: ${{ github.repository }}
+          CERT: ${{ steps.verify.outputs.cert }}
+        run: |
+          TARGET_TAG=crashstorm-ci
+          RECODE=$(( ${{ github.run_number }} + 1000 ))
+          VER="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)"
+          [ -n "$VER" ] || { echo "::error::读不到 versionName（app/build.gradle.kts）"; exit 1; }
+          FULL_SHA="${{ github.sha }}"
+          BASE="https://github.com/${REPO}/releases/download/${TARGET_TAG}"
+          PRETTY="${TS:0:4}-${TS:4:2}-${TS:6:2} ${TS:9:2}:${TS:11:2}"
+          MB="$(awk -v b="$(stat -c %s "dist/${APK_NAME}")" 'BEGIN{printf "%.1f", b/1048576}')"
+
+          {
+            echo "> [!CAUTION]"
+            echo "> **这是测试用的崩溃应用包，不是产品**：与主应用无关，包名独立（\`com.vstory.test.crashstorm\`），"
+            echo "> 与主应用共用同一把固定密钥 ⇒ 两者可互相覆盖安装。仅供复现崩溃/多进程行为。"
+            echo
+            echo "CI 构建 · \`${VER}+ci.${SHORT}(${RECODE})\` · 分支 \`${GITHUB_REF_NAME}\` · commit [\`${SHORT}\`](https://github.com/${REPO}/commit/${FULL_SHA})"
+            echo
+            echo "## 📥 最新构建 · ${PRETTY}（北京时间）"
+            echo
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 产物 | [\`${APK_NAME}\`](${BASE}/${APK_NAME}) |"
+            echo "| 大小 | ${MB} MB |"
+            echo "| 版本 | \`${VER}+ci.${SHORT}\`（versionCode \`${RECODE}\`） |"
+            echo "| 签名 | v2+v3 · \`${CERT}\` |"
+            echo "| 进程结构 | 主进程 + \`:worker\`（多进程残留测试用） |"
+            echo "| 构建来源 | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
+          } > release_body.md
+
+          # 历史构建：解析键 = 时间戳|短号，与下面清理步骤同一个正则
+          parsed_key() {
+            sed -nE 's/^(.*)_([0-9]{8}-[0-9]{4})_ci_([0-9a-f]{8})\.apk$/\2|\3/p' <<< "$1"
+          }
+          mapfile -t PREV < <(gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${REPO}/releases/tags/${TARGET_TAG}" \
+            --jq '.assets[].name' 2>/dev/null \
+            | while read -r name; do
+                k="$(parsed_key "$name")"
+                [ -n "$k" ] || continue
+                printf '%s|%s\n' "$k" "$name"
+              done \
+            | grep -v "^${TS}|${SHORT}|" | sort -u -r | head -5)
+
+          if [ "${#PREV[@]}" -gt 0 ]; then
+            {
+              echo
+              echo "## 🕘 历史构建（新 → 旧）"
+              echo
+            } >> release_body.md
+            for row in "${PREV[@]}"; do
+              IFS='|' read -r p_ts p_sha p_full <<< "$row"
+              pd="${p_ts:0:4}-${p_ts:4:2}-${p_ts:6:2} ${p_ts:9:2}:${p_ts:11:2}"
+              echo "- **${pd}** · \`${p_sha}\` — [下载](${BASE}/${p_full})" >> release_body.md
+            done
+          fi
+
+          {
+            echo
+            echo "---"
+            echo "文件名规则 = \`CrashStorm_<版本>.<code>_<时间>_ci_<短号>.apk\`（时间=北京时间，短号=SHA 前 8 位），按时间戳追加、不覆盖旧包，本页保留最新 6 组。"
+            echo "下方 **Assets 列表由 GitHub 按上传时间（旧 → 新）排列，无法调整** —— 请以上方表格为准取最新包。"
+          } >> release_body.md
+
+          echo "=== 生成的 release 说明 ==="
+          cat release_body.md
 
       - name: Publish release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
@@ -123,36 +263,55 @@ jobs:
           name: CrashStorm 测试包（滚动）
           prerelease: true
           make_latest: false
-          body: |
-            测试用崩溃应用，非产品，与主应用无关。
-
-            - 包名：`com.vstory.test.crashstorm`
-            - 版本：1.1+ci.${{ github.run_number }}（versionCode ${{ github.run_number }} + 1000）
-            - 进程结构：主进程 + `:worker`（多进程残留测试用）
-            - 提交：${{ github.sha }}
+          body_path: release_body.md
           files: dist/*.apk
 
-      # 页面只保留最新 5 个包。失败不影响本次产物（已上传），故不阻断。
-      - name: Cleanup old assets (keep latest 5)
+      # 「保留最新 6 组」的不变式，而不是「总数 - N」计数法：并发下两次运行的快照不同，
+      #   计数法会多删；不变式任何交错都收敛到同一稳态，且最新构建必在保留集内。
+      - name: Cleanup old assets (keep latest 6 builds)
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          SHORT: ${{ steps.info.outputs.short }}
+          TS: ${{ steps.info.outputs.ts }}
         run: |
-          sleep 20
+          sleep 30   # 等本次上传的 asset 在 API 中可见
+          TARGET_TAG=crashstorm-ci
+
           mapfile -t ASSETS < <(gh api --paginate \
             -H "Accept: application/vnd.github+json" \
-            "repos/${{ github.repository }}/releases/tags/crashstorm-ci" \
-            --jq '.assets[] | [.id, .name] | @tsv')
-          echo "现有 asset: ${#ASSETS[@]}"
-          mapfile -t SORTED < <(printf '%s\n' "${ASSETS[@]}" \
-            | awk -F'\t' 'NF==2 { n=$2; gsub(/[^0-9]/,"",n); print n"\t"$1 }' \
-            | sort -rn)
-          i=0
-          for row in "${SORTED[@]}"; do
-            [ -n "$row" ] || continue
-            i=$((i + 1))
-            [ "$i" -le 5 ] && continue
-            id="${row#*$'\t'}"
-            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$id" \
-              && echo "已删旧 asset: $id"
-          done
+            "repos/${{ github.repository }}/releases/tags/${TARGET_TAG}" \
+            --jq '.assets[] | select(.name | test("_[0-9]{8}-[0-9]{4}_ci_[0-9a-f]{8}\\.apk$")) | [.id, .name] | @tsv')
+          echo "匹配命名规则的 asset 共 ${#ASSETS[@]} 个"
+
+          parsed_key() {
+            sed -nE 's/^(.*)_([0-9]{8}-[0-9]{4})_ci_([0-9a-f]{8})\.apk$/\2|\3/p' <<< "$1"
+          }
+
+          KEYS_FILE="$(mktemp)"
+          while IFS=$'\t' read -r _id name; do
+            [ -n "$name" ] || continue
+            parsed_key "$name"
+          done < <(printf '%s\n' "${ASSETS[@]}") | sort -u -r > "$KEYS_FILE"
+
+          declare -A KEEP=()
+          kept=0
+          while read -r k; do
+            [ -n "$k" ] || continue
+            if [ "$kept" -ge 6 ]; then break; fi
+            KEEP["$k"]=1
+            kept=$((kept + 1))
+          done < "$KEYS_FILE"
+          echo "保留最新 $kept 组"
+
+          deleted=0
+          while IFS=$'\t' read -r id name; do
+            [ -n "$id" ] || continue
+            k="$(parsed_key "$name")"
+            if [ -n "$k" ] && [ -n "${KEEP[$k]:-}" ]; then continue; fi
+            gh api -X DELETE -H "Accept: application/vnd.github+json" \
+              "repos/${{ github.repository }}/releases/assets/$id" >/dev/null 2>&1 \
+              && deleted=$((deleted + 1)) || true
+          done < <(printf '%s\n' "${ASSETS[@]}")
+          rm -f "$KEYS_FILE"
+          echo "已删除 $deleted 个旧 asset"
