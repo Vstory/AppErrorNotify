@@ -32,6 +32,16 @@ import android.widget.Toast;
  *      2) 自动抑制：30 秒内 ≥3 次 → force-stop + 说明通知；
  *      3) 手动恢复：点说明通知「恢复通知」→ 计数归零；
  *      4) 自动恢复：平静 3 分钟自动解除。
+ *
+ * 多进程残留测试（本组按钮与上面互不干扰，建议单独跑）：
+ *  - 先点「拉起 worker」→ ps 里应同时出现两个进程：
+ *      com.vstory.test.crashstorm          （主，跑本页面）
+ *      com.vstory.test.crashstorm:worker  （子，WorkerService）
+ *  - 「主进程崩溃」→ 主进程死。观察 :worker 是否还在：
+ *      还在 = 残留（这是 issue #3 描述的现象）；不在 = 被系统连带清理。
+ *  - 「worker 崩溃」→ 反向验证：子进程死时主进程是否受影响。
+ *  - 「切换 worker 存活模式」→ STICKY 下子进程可能被系统重拉（pid 变），
+ *    NOT_STICKY 下死透（pid 消失）。判读残留前先确认当前模式。
  */
 public class MainActivity extends Activity {
 
@@ -168,7 +178,70 @@ public class MainActivity extends Activity {
         full.setOnClickListener(v -> startStorm(STORM_FULL, RELAUNCH_DELAY_FULL_MS));
         root.addView(full, lp());
 
+        TextView mpTip = new TextView(this);
+        mpTip.setTextSize(13);
+        mpTip.setPadding(0, dp(24), 0, 0);
+        mpTip.setText("—— 多进程残留测试 ——\n" +
+                "先「拉起 worker」，确认 ps 里出现 :worker 后，再点崩溃按钮。");
+        root.addView(mpTip);
+
+        Button boot = new Button(this);
+        boot.setText("拉起 worker");
+        boot.setOnClickListener(v -> startWorker());
+        root.addView(boot, lp());
+
+        Button crashMain = new Button(this);
+        crashMain.setText("主进程崩溃（看 :worker 是否残留）");
+        crashMain.setOnClickListener(v -> crashNow("main process (expect worker residual)"));
+        root.addView(crashMain, lp());
+
+        Button workerCrashBtn = new Button(this);
+        workerCrashBtn.setText("worker 崩溃（看主进程是否受影响）");
+        workerCrashBtn.setOnClickListener(v -> crashWorker());
+        root.addView(workerCrashBtn, lp());
+
+        Button sticky = new Button(this);
+        sticky.setText("切换 worker 存活模式（当前：" + stickyLabel() + "）");
+        sticky.setOnClickListener(v -> {
+            toggleSticky();
+            sticky.setText("切换 worker 存活模式（当前：" + stickyLabel() + "）");
+        });
+        root.addView(sticky, lp());
+
         setContentView(root);
+    }
+
+    /** 拉起 :worker 进程（WorkerService 在独立进程里常驻） */
+    private void startWorker() {
+        Intent i = new Intent(this, WorkerService.class)
+                .setAction(WorkerService.ACTION_START);
+        startService(i);
+        Toast.makeText(this, "已请求拉起 :worker，1 秒后看 ps", Toast.LENGTH_SHORT).show();
+    }
+
+    /** 让 :worker 进程崩（不影响本进程） */
+    private void crashWorker() {
+        Intent i = new Intent(this, WorkerService.class)
+                .setAction(WorkerService.ACTION_CRASH);
+        startService(i);
+    }
+
+    private boolean isSticky() {
+        return getSharedPreferences(WorkerService.PREFS, MODE_PRIVATE)
+                .getBoolean(WorkerService.K_STICKY, true);
+    }
+
+    private String stickyLabel() {
+        return isSticky() ? "STICKY" : "NOT_STICKY";
+    }
+
+    /** STICKY 下 worker 被杀后可能被系统重拉（pid 变）；NOT_STICKY 下死透。 */
+    private void toggleSticky() {
+        boolean next = !isSticky();
+        getSharedPreferences(WorkerService.PREFS, MODE_PRIVATE)
+                .edit().putBoolean(WorkerService.K_STICKY, next).apply();
+        Toast.makeText(this, "下次拉起 worker 起生效：" + (next ? "STICKY" : "NOT_STICKY"),
+                Toast.LENGTH_SHORT).show();
     }
 
     private LinearLayout.LayoutParams lp() {

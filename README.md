@@ -21,6 +21,32 @@
 
 > ⚠️ **若点完「后台崩溃」不按 Home 键**，3 秒到点时页面仍在最前 → 这次仍会被记成**前台崩溃**。
 
+## 多进程残留测试（`:worker` 进程）
+
+本 App 除主进程外还带一个 `:worker` 进程（`WorkerService`，Manifest 里 `android:process=":worker"`），
+用来验证「一个进程崩溃后，同应用的其它进程是否残留」。
+
+`ps -A | grep com.vstory.test.crashstorm` 在运行时应看到两行：
+
+```
+com.vstory.test.crashstorm          ← 主进程，跑本页面
+com.vstory.test.crashstorm:worker   ← 子进程，WorkerService
+```
+
+| 验证项 | 用什么按钮 | 期望结果 |
+|---|---|---|
+| 建立多进程态 | 拉起 worker | `ps` 里出现 `:worker` |
+| 主进程崩 → 子进程残留 | 主进程崩溃 | 主进程消失；`:worker` 是否存活即是否「残留」 |
+| 子进程崩 → 主进程受影响 | worker 崩溃 | 仅 `:worker` 消失，主进程应不受影响 |
+| 存活模式对比 | 切换 worker 存活模式 | `STICKY`：子进程被杀后可能被系统重拉（**pid 变**）；`NOT_STICKY`：死透（**pid 消失**） |
+
+设计约束（决定了测试是否有意义）：
+
+- `WorkerService.onBind` **恒返回 null** —— 刻意不建 binder 连接。一旦与主进程有连接，主进程死时
+  AMS 会连带清理该服务，就测不到「残留」了。
+- 判读残留前**必须先确认当前存活模式**：`STICKY` 下 pid 变化可能是被系统重新拉起，不等于残留。
+
+
 ## ⚠️ 使用警告：完整风暴曾导致系统死机
 
 「完整风暴（连崩 12 次）」由真机实证**曾把系统的 `crash_dump` 链路拖垮，导致设备死机**。
@@ -34,24 +60,30 @@
 |---|---|
 | 包名 / applicationId | `com.vstory.test.crashstorm` |
 | 应用名 | CrashStorm |
-| versionCode / versionName | 2 / 1.0 |
-| minSdk / targetSdk / compileSdk | 26 / **31** / 36 |
+| versionCode / versionName | CI 构建时由 `github.run_number` 注入：`run_number + 1000` / `1.1+ci.<run_number>`（保证覆盖安装不被拒）；本地不带 `-PciRun` 时为 2 / 1.1 |
+| minSdk / targetSdk / compileSdk | 26 / **31** / 37 |
 | 语言 | Java 17（无 AndroidX 依赖） |
+| 进程 | 主进程 + `:worker` |
 
 **为什么 `targetSdk` 钉在 31**：规避通知的**运行时权限**，并让 `SCHEDULE_EXACT_ALARM` 精确闹钟**自动授予**——
 自复活风暴靠精确闹钟驱动，这两点在更高 targetSdk 上会变成需要用户手动授权的额外前置。
 
-**实现要点**：崩溃 = 主线程抛 `RuntimeException`（走 `system_server` 的 AppErrors 前台崩溃路径）；
-风暴 = 崩溃前先排好一个 `setExactAndAllowWhileIdle` 闹钟，崩溃后由该闹钟把 Activity 拉起来，
-等 `onWindowFocusChanged` 确认界面真正可见再崩下一次（保证走「前台崩溃」路径）。
+**实现要点**：崩溃 = 线程抛 `RuntimeException`（走 `system_server` 的 AppErrors 崩溃路径；
+主进程与 `:worker` 都抛在主线程）；风暴 = 崩溃前先排好一个 `setExactAndAllowWhileIdle` 闹钟，
+崩溃后由该闹钟把 Activity 拉起来，等 `onWindowFocusChanged` 确认界面真正可见再崩下一次
+（保证走「前台崩溃」路径）。
 
 ## 构建
 
+**走 CI，本地不编译**：push 到本分支（或手动 dispatch）即触发 `.github/workflows/build-crashstorm.yml`，
+产出带固定密钥签名的 release 包，发到固定 tag `crashstorm-ci` 的滚动测试页（保留最新 5 个）。
+
 ```bash
-./gradlew :app:assembleDebug        # 产物 app/build/outputs/apk/debug/
+git push origin crashstorm-test
 ```
 
-无第三方依赖、无 AndroidX，用标准 Android SDK 即可离线构建（需 JDK 17）。
+签名密钥与主应用共用同一套 GitHub Secrets（`KEY_BASE64` / `SIGNING_*`），因此两个包签名一致、可互相覆盖安装。
+⚠️ 若设备上装过**别的签名**的 CrashStorm，需先卸载再装 CI 包（版本号虽递增，签名不同仍会拒装）。
 
 ## 注意事项
 

@@ -17,5 +17,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 独立进程进程：用于验证「主进程崩溃后子进程是否残留」。
+             不带 android:isolatedProcess，故与主进程同 uid、共享权限，
+             但 pid 与进程生命周期独立。 -->
+        <service
+            android:name=".WorkerService"
+            android:exported="false"
+            android:process=":worker" />
     </application>
 </manifest>

@@ -1,0 +1,158 @@
+name: Build CrashStorm
+
+# 独立孤儿分支的测试应用 CI：只负责编译 + 签名 + 发一个滚动测试页。
+# 不碰主应用，与 build.yml 完全独立（两条分支没有共享代码）。
+on:
+  push:
+    branches: [crashstorm-test]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 发布 Release 需要写权限
+
+# 所有构建写同一个 tag 的同一个页面，并发会出现「同时创建 tag → 422」与资产互相干扰，故串行。
+concurrency:
+  group: build-crashstorm
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  build:
+    # 与主 CI 钉同一镜像：AGP 版本一致（9.2.1），避免两套环境和 SDK 版本漂移
+    runs-on: ubuntu-26.04
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: init.defaultBranch
+      GIT_CONFIG_VALUE_0: main
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # 与主应用共用同一套固定密钥 ⇒ 两个包签名一致，可互相覆盖安装。
+      # 口令一律经 env 传，不写进 run 正文（值里含 $ / 反引号会被 shell 二次展开）。
+      - name: Prepare signing (fixed key from secrets)
+        env:
+          KEY_BASE64: ${{ secrets.KEY_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          missing=""
+          for v in KEY_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::缺少签名 secret:$missing —— 拒绝回退到未签名/调试签名"
+            exit 1
+          fi
+
+          KS="$GITHUB_WORKSPACE/ci-signing.jks"
+          printf '%s' "$KEY_BASE64" | base64 -d > "$KS"
+
+          keytool -list -keystore "$KS" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null 2>&1 \
+            || { echo "::error::密钥库打不开或别名不存在 —— 核对 KEY_BASE64 / SIGNING_* 三件"; exit 1; }
+
+          {
+            printf 'storeFile=%s\n' "$KS"
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } >> local.properties
+          echo "已按固定密钥配置签名"
+
+      # ciRun 让 versionCode 随 run_number 单调递增（gradle 侧 +1000），覆盖安装不被拒。
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleRelease -PciRun=${{ github.run_number }}
+
+      # 两类静默失败：产物没签名（AGP 不报错，只产出 -unsigned.apk）、
+      # versionCode 没随 ciRun 生效（装上去还是旧值 ⇒ 覆盖安装被拒）。
+      - name: Verify APK
+        run: |
+          REL=app/build/outputs/apk/release
+          if [ -f "$REL/app-release-unsigned.apk" ]; then
+            echo "::error::产物未签名（出现 app-release-unsigned.apk）—— signingConfig 没生效"
+            exit 1
+          fi
+          APK="$REL/app-release.apk"
+          [ -f "$APK" ] || { echo "::error::未找到产物 $APK"; ls -R "$REL" || true; exit 1; }
+
+          APKSIGNER="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+          [ -n "$APKSIGNER" ] || { echo "::error::找不到 apksigner，无法断言签名"; exit 1; }
+          "$APKSIGNER" verify --print-certs "$APK" | head -4
+
+          AAPT2="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)"
+          [ -n "$AAPT2" ] || { echo "::error::找不到 aapt2"; exit 1; }
+          BADGING="$("$AAPT2" dump badging "$APK" 2>/dev/null || true)"
+          PKG_LINE="$(printf '%s' "$BADGING" | grep -m1 '^package:' || true)"
+          [ -n "$PKG_LINE" ] || { echo "::error::读不到 badging 的 package 行"; exit 1; }
+          echo "$PKG_LINE"
+
+          EXPECT_CODE=$(( ${{ github.run_number }} + 1000 ))
+          printf '%s' "$PKG_LINE" | grep -q "versionCode='${EXPECT_CODE}'" \
+            || { echo "::error::versionCode 与 ciRun 不符（期望 ${EXPECT_CODE}）：$PKG_LINE"; exit 1; }
+          printf '%s' "$PKG_LINE" | grep -q "versionName='1.1+ci.${{ github.run_number }}'" \
+            || { echo "::error::versionName 与 ciRun 不符：$PKG_LINE"; exit 1; }
+          echo "✅ 签名有效、版本号 $EXPECT_CODE 已生效"
+
+      - name: Stage artifact
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/CrashStorm-${{ github.run_number }}.apk"
+          ls -la dist
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: CrashStorm-${{ github.run_number }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: crashstorm-ci
+          name: CrashStorm 测试包（滚动）
+          prerelease: true
+          make_latest: false
+          body: |
+            测试用崩溃应用，非产品，与主应用无关。
+
+            - 包名：`com.vstory.test.crashstorm`
+            - 版本：1.1+ci.${{ github.run_number }}（versionCode ${{ github.run_number }} + 1000）
+            - 进程结构：主进程 + `:worker`（多进程残留测试用）
+            - 提交：${{ github.sha }}
+          files: dist/*.apk
+
+      # 页面只保留最新 5 个包。失败不影响本次产物（已上传），故不阻断。
+      - name: Cleanup old assets (keep latest 5)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sleep 20
+          mapfile -t ASSETS < <(gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${{ github.repository }}/releases/tags/crashstorm-ci" \
+            --jq '.assets[] | [.id, .name] | @tsv')
+          echo "现有 asset: ${#ASSETS[@]}"
+          mapfile -t SORTED < <(printf '%s\n' "${ASSETS[@]}" \
+            | awk -F'\t' 'NF==2 { n=$2; gsub(/[^0-9]/,"",n); print n"\t"$1 }' \
+            | sort -rn)
+          i=0
+          for row in "${SORTED[@]}"; do
+            [ -n "$row" ] || continue
+            i=$((i + 1))
+            [ "$i" -le 5 ] && continue
+            id="${row#*$'\t'}"
+            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$id" \
+              && echo "已删旧 asset: $id"
+          done
