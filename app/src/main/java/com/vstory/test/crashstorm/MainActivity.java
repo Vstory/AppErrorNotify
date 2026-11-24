@@ -16,9 +16,9 @@ import android.widget.Toast;
 /**
  * AppErrorNotify 崩溃通知 / 风暴抑制 的实机测试工具。
  *
- * ⚠️ 2026-09-05 温和化：完整风暴(12次)曾把系统 crash_dump 链路拖垮导致死机（真机实证），
- *    日常验证请用【温和风暴 4 次】（第 3 次即触发熔断 force-stop，足够闭环）；
- *    完整风暴仅供压力场景，高风险，慎用！
+ * ⚠️ 完整风暴(12 次)在 v1.16(76) 之前会与 Thanox 共存触发 system_server 死锁致死机；
+ *    该缺陷已修复，现用于验证防死锁修复；
+ *    日常验证仍可用【温和风暴 4 次】（第 3 次即触发熔断 force-stop，闭环更快）。
  *
  * 用法：
  *  - 前台崩溃：留在本页面点「前台崩溃」立即崩 → 模块详情应显示 崩溃时页面=MainActivity。
@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
     private static final String K_LEFT = "left";   // 剩余要崩的次数（不含刚崩的这次）
     private static final String K_TOTAL = "total"; // 本轮风暴总次数
     private static final int STORM_MILD = 4;        // 温和风暴：3 连崩即触发熔断，4 次足够闭环
-    private static final int STORM_FULL = 12;       // 完整风暴：⚠️ 高风险（曾死机），仅压力测试用
+    private static final int STORM_FULL = 12;       // 完整风暴：验证防死锁修复用（v1.16(76) 起不再有死机风险）
     private static final long RELAUNCH_DELAY_MILD_MS = 1500; // 温和：放慢节奏，减轻 crash_dump 瞬时压力
     private static final long RELAUNCH_DELAY_FULL_MS = 500;
 
@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
                 "温和风暴（推荐）：自动连崩 4 次（间隔约 2-3 秒）。\n" +
                 "第 3 次（30 秒内）触发自动抑制：force-stop + 清通知 +\n" +
                 "弹「已自动暂停」说明通知，第 4 次应被掐断不再崩。\n\n" +
-                "⚠️ 完整风暴（12 次快速连崩）曾导致系统死机，仅供压力场景慎用！");
+                "完整风暴（12 次快速连崩）：v1.16(76) 之前会因模块死锁把系统搞死机，现已修复，可用于验证防死锁修复。");
         root.addView(tip);
 
         Button fg = new Button(this);
@@ -174,7 +174,7 @@ public class MainActivity extends Activity {
         root.addView(mild, lp());
 
         Button full = new Button(this);
-        full.setText("完整风暴（连崩 12 次，⚠️ 高风险）");
+        full.setText("完整风暴（连崩 12 次，防死锁验证）");
         full.setOnClickListener(v -> startStorm(STORM_FULL, RELAUNCH_DELAY_FULL_MS));
         root.addView(full, lp());
 
