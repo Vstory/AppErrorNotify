@@ -123,7 +123,7 @@
     <string name="app_errors_tip">App collapses an unprocessed abnormality. Click to view details or feedback to the App developer.</string>
     <string name="crash_auto_suppress_tip">\'%1$s\' crashed repeatedly; it was stopped and its crash notifications are auto-paused. They resume after 3 quiet minutes.</string>
     <string name="crash_auto_suppress_notice_title">Crash notifications auto-paused</string>
-    <string name="crash_auto_suppress_notice_content">\'%1$s\' crashed repeatedly in a short time, so AppErrorNotify stopped it and auto-paused its crash notifications to avoid overwhelming the system. Notifications resume automatically after 3 quiet minutes; reopen the app when you are ready, or tap the action below to resume now.</string>
+    <string name="crash_auto_suppress_notice_content">\'%1$s\' crashed repeatedly in a short time, so AppErrorNotify stopped it and auto-paused its crash notifications to limit repeated crashes. Notifications resume automatically after 3 quiet minutes; reopen the app when you are ready, or tap the action below to resume now.</string>
     <string name="crash_auto_suppress_resume">Resume notifications</string>
     <string name="crash_auto_suppress_resumed">Notifications resumed for %1$s\n%2$s</string>
     <string name="batch_operations">Batch Operations</string>

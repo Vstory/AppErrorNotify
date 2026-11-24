@@ -52,9 +52,9 @@ Rebuilt in pure Java on [libxposed API 102](https://github.com/LSPosed/LSPosed) 
 
 Choose how each app's crashes are presented: **follow global / system notification / Toast / silent**. Silent apps are still recorded, just not shown.
 
-### 🛡 Crash-storm Circuit Breaker (anti-reboot)
+### 🛡 Crash-storm Circuit Breaker (Repeated-Crash Cap)
 
-If the same app crashes repeatedly within a short window (crash storm), the module automatically **force-stops the app** and pauses its notifications to stop the storm from dragging down the system (system-wide crash loops can reboot the device); a notice with a one-tap resume is posted meanwhile. This protection is **always active** and is **not affected** by display filters / mutes.
+If the same app crashes repeatedly within a short window (crash storm), the module automatically **force-stops the app** and pauses its notifications to limit repeated crashes — in effect capping how often an app that keeps crashing and relaunching in the background can do so; a notice with a one-tap resume is posted meanwhile. This protection is **always active** and is **not affected** by display filters / mutes.
 
 ### 🌐 Misc
 
@@ -66,7 +66,7 @@ If the same app crashes repeatedly within a short window (crash storm), the modu
 - **Scope**: the module runs **only in the `system_server` process**; on first enable, check `system_server` in LSPosed and **reboot** (or restart `system_server`). Later upgrades can use LSPosed "Hot reload" to apply immediately.
 - **Crash chain only**: the module hooks the Android `AppErrors` (app crash) chain — **no ANR handling**; it does not inject into normal app processes.
 - **No dialogs**: presentation is a system notification (default) / Toast / silent — no dialog popups, no floating windows.
-- **Circuit-breaker side effect**: during a crash storm the crashing app is auto force-stopped (even if muted) — that is the active protection against system reboot loops.
+- **Circuit-breaker side effect**: during a crash storm the crashing app is auto force-stopped (even if muted) — that cap is intentional, not a false positive.
 - Package-change note above; module data / notification history are isolated per package.
 
 ## Installation
